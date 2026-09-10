@@ -5,7 +5,24 @@
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = project.v
+PROJECT_SOURCES += accumulator.v
+PROJECT_SOURCES += alu.v
+PROJECT_SOURCES += cordic.v
+PROJECT_SOURCES += decode.v
+PROJECT_SOURCES += functional_units.v
+PROJECT_SOURCES += intersection_unit.v
+PROJECT_SOURCES += io.v
+PROJECT_SOURCES += multiplier.v
+PROJECT_SOURCES += ray_generator.v
+PROJECT_SOURCES += ray_tracing_unit.v
+PROJECT_SOURCES += reg_file.v
+PROJECT_SOURCES += shader_core.v
+PROJECT_SOURCES += sram_control.v
+PROJECT_SOURCES += sram_sim.v
+PROJECT_SOURCES += tinytracer_defs.vh
+PROJECT_SOURCES += tt_um_tinytracer.v
+PROJECT_SOURCES += uart.v
+PROJECT_SOURCES += xorshift_rng.v
 
 ifneq ($(GATES),yes)
 
