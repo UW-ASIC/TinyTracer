@@ -1,7 +1,7 @@
 `default_nettype none
 `include "tinytracer_defs.vh"
 
-module functional_units (
+module fu_control (
     input  wire                       clk,
     input  wire                       rst_n,
 

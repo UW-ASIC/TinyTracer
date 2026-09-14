@@ -1,0 +1,25 @@
+/* Sidebar entries are "name: description"; theme_overrides/nav.html wraps the
+   name in <code>. The theme already strips the box and colour from code inside
+   sidebar links, leaving only the monospace face. It also shrinks it to 75%
+   (that is how Ara's site looks); keep it the same size as the description
+   instead. Delete this rule for the smaller Ara look. */
+.wy-menu-vertical li code {
+  font-size: 100%;
+}
+
+/* The theme colours visited links purple (#9b59b6). Keep links in the page
+   body the normal link blue so module links look the same whether or not the
+   page has been opened. Scoped to the page body on purpose: the column's title
+   links to the (visited) home page and sits on a background of that same blue,
+   and the column's entries have their own grey. */
+.rst-content a:visited {
+  color: #2980b9;
+}
+
+/* Keep the title and search box pinned at the top of the column while the
+   module list scrolls underneath. The block already has a solid background
+   and z-index from the theme. */
+.wy-side-nav-search {
+  position: sticky;
+  top: 0;
+}
