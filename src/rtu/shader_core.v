@@ -5,8 +5,8 @@ module shader_core (
     input  wire                            clk,
     input  wire                            rst_n,
 
-    input  wire [3*`COLOR_DEPTH-1:0]       sky_color,
-    input  wire [3*`COLOR_DEPTH-1:0]       object_color,
+    input  wire [3*`COLOUR_DEPTH-1:0]       sky_colour,
+    input  wire [3*`COLOUR_DEPTH-1:0]       object_colour,
     input  wire [1:0]                      mat_type,
     input  wire [$clog2(`MAX_BOUNCES)-1:0] ray_bounces_left,
     input  wire                            hit,
@@ -17,7 +17,7 @@ module shader_core (
 
     // Sample Request Channel
     output reg                             sample_req_valid,   
-    output reg [3*`COLOR_DEPTH-1:0]        sample_req_color, 
+    output reg [3*`COLOR_DEPTH-1:0]        sample_req_colour, 
     input  wire                            sample_req_ready,
 
     ////////////////////////////////

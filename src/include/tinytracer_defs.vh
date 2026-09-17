@@ -10,7 +10,7 @@
 `define IMG_W        64          // Output image width
 `define IMG_H        64          // Output image height
 `define SPP          8           // samples per pixel (power of two)
-`define COLOR_DEPTH  8           // bits per color channel 
+`define COLOUR_DEPTH  8           // bits per colour channel 
 `define MAX_BOUNCES  10          // maximum ray bounces
 `define WLEN         16          // word length
 
@@ -18,7 +18,6 @@
 // Q8.8 signed two's complement: range [-128.0, +127.99609375], LSB = 2^-8.
 `define Q_INT        8
 `define Q_FRAC       8
-`define Q_ONE        16'h0100
 
 //---------------------------- UART frame encoding ---------------------------
 `define RENDER_START 8'h00   // RENDER_START 

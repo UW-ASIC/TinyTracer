@@ -1,4 +1,4 @@
-/* Sidebar entries are "name: description"; theme_overrides/nav.html wraps the
+/* Sidebar entries are "name — description"; theme_overrides/nav.html wraps the
    name in <code>. The theme already strips the box and colour from code inside
    sidebar links, leaving only the monospace face. It also shrinks it to 75%
    (that is how Ara's site looks); keep it the same size as the description

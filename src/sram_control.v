@@ -27,7 +27,7 @@ module sram_control (
 
     // SRAM Read Response Channel
     output reg                                rtu_sram_resp_valid,
-    output reg  [`DATA_WIDTH-1:0]             rtu_sram_resp_rdata,
+    output reg  [`WLEN-1:0]             rtu_sram_resp_rdata,
     input  wire                               rtu_sram_resp_ready,
 
     ////////////////////////////////

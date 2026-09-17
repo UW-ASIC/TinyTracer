@@ -4,120 +4,42 @@
 
 TinyTracer is a small ray-tracing graphics chip written in Verilog by the
 University of Waterloo ASIC Design Team and built through
-[Tiny Tapeout](https://tinytapeout.com). A host sends a scene description over
-UART, the chip renders it, and the finished pixels stream back over the same
-UART link. Everything is computed in 16-bit fixed point, and the whole design
-fits in a 4x2 Tiny Tapeout tile.
-
-The rendering parameters are fixed at build time in
-`src/include/tinytracer_defs.vh`:
-
-| Parameter          | Value                                        |
-| ------------------ | -------------------------------------------- |
-| Image size         | 64 x 64 pixels                               |
-| Samples per pixel  | 8                                            |
-| Maximum ray bounces| 10                                           |
-| Colour depth       | 8 bits per channel (24-bit RGB)              |
-| Number format      | Q8.8 signed fixed point, range -128 to +128  |
-| Primitives         | Spheres and triangles                        |
-| Materials          | Diffuse, reflective, dielectric, emissive    |
-| Scene memory       | 512 x 16-bit SRAM                            |
-| System clock       | 50 MHz                                       |
-| UART               | 115 200 baud, RX on `ui[3]`, TX on `uo[4]`   |
+[Tiny Tapeout](https://tinytapeout.com). A host device (e.g. a laptop) sends a scene description over UART, the chip renders it, and the coloured pixels stream back over the same
+UART link. Due to area limitations, TinyTracer renders scenes *serially*, computing one pixel colour at a time.
 
 ## Architectural Overview
 
-TinyTracer is organised as a chain of blocks that hand work to each other over
-valid/ready channels. The ray-tracing unit decides *what* to compute, and a
-small functional-unit cluster does the arithmetic.
+![TinyTracer block diagram](TT_BlockDiagram.svg)
 
-```text
- UART RX ──▶ ┌──────┐ ──▶ ┌────┐ ◀── pixels ── ┌─────────────┐
-             │ uart │     │ io │               │ accumulator │
- UART TX ◀── └──────┘ ◀── └────┘               └─────────────┘
-                            │ scene                  ▲ samples
-                            ▼ writes                 │
-                      ┌──────────────┐  reads  ┌─────────────────────┐
-                      │ sram_control │ ◀─────▶ │ rtu                 │
-                      │  512 x 16b   │         │  ray_generator      │
-                      └──────────────┘         │  intersection_unit  │
-                            ▲                  │  shader_core        │
-                            │ LUT reads        └─────────────────────┘
-                            │                     │ macro-ops   ▲ results
-                            │                     ▼             │
-                            │                  ┌──────────────────────┐
-                            │                  │ decode  ◀─▶ reg_file │
-                            │                  └──────────────────────┘
-                            │                     │ micro-ops   ▲ done
-                            │                     ▼             │
-                            │                  ┌─────────────────────┐
-                            └──────────────────│ fu_control          │
-                                               │  alu   multiplier   │
-                                               │  cordic   rng       │
-                                               └─────────────────────┘
-```
+TinyTracer consists of the following components:
 
-- **I/O** ([`uart`](modules/io/uart.md), [`io`](modules/io/io.md)) receives
-  UART frames, writes scene objects into SRAM, starts a render, and streams
-  finished pixels back out.
-- **SRAM** ([`sram_control`](modules/sram/sram_control.md)) arbitrates one
-  512-word memory between scene writes from I/O, scene reads from the RTU, and
-  lookup-table reads from the CORDIC unit.
-- **Ray-tracing unit** ([`rtu`](modules/rtu/rtu.md)) walks the scene for every
-  sample. Its [`ray_generator`](modules/rtu/ray_generator.md) produces primary
-  rays from the camera and secondary rays after each hit,
-  [`intersection_unit`](modules/rtu/intersection_unit.md) tests a ray against
-  a sphere or triangle, and [`shader_core`](modules/rtu/shader_core.md) turns
-  hit results and material metadata into a colour sample.
-- **Decode** ([`decode`](modules/decode/decode.md)) breaks each vector-level
-  macro-op from the RTU into a sequence of scalar micro-ops, using
-  [`reg_file`](modules/reg_file/reg_file.md) as scratch space.
-- **Functional units** ([`fu_control`](modules/fu/fu_control.md)) route each
-  micro-op to the [`alu`](modules/fu/alu.md) (add, subtract, compare), the
-  [`multiplier`](modules/fu/multiplier.md), the [`cordic`](modules/fu/cordic.md)
-  unit (divide, square root, cosine, reciprocal), or the
-  [`rng`](modules/fu/rng.md).
-- **Accumulator** ([`accumulator`](modules/accumulator/accumulator.md))
-  averages the samples of each pixel and forwards the finished pixel to I/O.
-- **Top level** ([`tt_um_tinytracer`](modules/tt_um_tinytracer.md)) wires the
-  blocks together and maps them onto the Tiny Tapeout pins.
+- **Functional Units (FUs)**: Includes ALU, Multiplier, CORDIC, Random Number Generator (RNG), and Inverse Square Root Unit (INVSQRT).
+- **Ray Tracing Unit (RTU)**: Each step of the ray tracing algorithm, including ray generation, computing ray-object intersections, and colouring pixels, is executed by the RTU. The RTU sends scalar and vector instructions to the FUs to execute.
+- **Decode**: The Decode Unit decomposes more complex instructions from the RTU into simple "micro-operations" that the FUs can execute. 
+- **Register File**: The Register File is a small set of registers that is used by the FUs to write intermediate results to for more complex multi-step operations like vector dot products.
+- **Accumulator**: The Accumulator is a buffer that holds computed pixel colours from the RTU and averages the results over the number of samples per pixel.
+- **I/O**: The I/O Unit communicates between the host device and TinyTracer, which occurs when a new scene is being loaded into memory or pixel data is being streamed back to the host device.
+- **SRAM**: The SRAM holds bounding volume data, scene information, and LUT values for the CORDIC FU.
 
 ## Rendering a Frame
 
-1. The host sends the scene over UART. `io` parses each object frame and writes
-   it to SRAM through `sram_control`.
-2. The host sends a render command. `io` pulses `render` to the RTU.
-3. For every pixel and every sample, the RTU generates a ray, intersects it with
-   the scene objects read from SRAM, shades the hit, and follows secondary rays
-   until the ray escapes, hits an emissive surface, or runs out of bounces.
-4. Vector maths inside the RTU is expressed as macro-ops such as dot product,
-   cross product and normalisation. `decode` expands each one into scalar
-   micro-ops that the functional units execute one at a time.
-5. Each finished colour sample goes to the accumulator. Once a pixel has all of
-   its samples, the averaged colour is handed to `io` and transmitted.
+A 3D scene is first decomposed into individual objects with positional and material metadata. Following this process, each object is sent as a message from the host to the I/O block to decode UART frames into control and data signals for the SRAM. After scene initialization, the host sends LUT messages to populate the SRAM LUTs for certain arithmetic algorithms. Once the scene and LUT(s) are initialized, the host sends a RENDER message to begin rendering the scene.
 
-## Target Use Cases
+Show memory map figure here (TBD).
 
-- A complete, readable example of how a ray tracer maps onto a tiny amount of
-  silicon, with no floating point and a single shared memory.
-- A Tiny Tapeout design that can be exercised from any host with a UART.
-- A base for experiments: swap a functional unit, change the fixed-point
-  format, or add a primitive type without touching the rest of the pipeline.
+The Ray Tracing Unit (RTU) works at sample granularity, computing colors for a pixel one sample/iteration at a time. Each module within the RTU sends request packets to Decode, which then sends micro-ops to the FUs to carry out any necessary computations. 
 
-## TinyTracer for Non-Experts
+For each pixel, the **Ray Generator** computes a direction for a given sample. After ray generation, the **Intersection Unit** fetches bounding volumes from **SRAM** and determines which bounding volume a ray intersects with. Using the result of the ray-bounding-volume intersection, objects within the bounding volume of interest are then fetched from **SRAM** and subsequently checked for intersections with a ray. Eventually, the **Shader Core** takes in results of the ray-object intersection (e.g., hit? miss?) and uses material properties of an intersected object to feed back into the **Ray Generator** for scattered ray generation (if an object was hit). When the final ray bounce occurs, the **Shader Core** uses scene properties (e.g. sky color) to computes the pixel's color for a given sample. 
 
-### What Is TinyTracer?
+## Decode
 
-Ray tracing is how film and modern game graphics produce realistic lighting.
-For each pixel of the picture, the computer shoots an imaginary ray out of a
-camera, finds the first object it hits, and works out how light would bounce
-off that surface. TinyTracer is a chip that does exactly this, but small enough
-to be manufactured as a student project.
+The **Decode** module decomposes macro-ops into micro-ops. This module additionally organizes computed results to be sent back to the **RTU.**
 
-### Why Is TinyTracer Interesting?
+* Macro-ops carry scalar or vector operations
+  * **Decode** decomposes vector operations into scalar operations; maps them to functional units
+  * Scalar operations are left unchanged
 
-Ray tracing on a desktop computer leans on fast floating-point hardware and
-lots of memory. TinyTracer has neither. It uses 16-bit fixed-point numbers,
-a 1 KB memory, and a handful of arithmetic units, and it renders one sample
-at a time. Seeing a full rendering pipeline squeezed into that budget shows
-which parts of the algorithm are essential and which are luxuries.
+## Accumulator
+
+Once color is computed for a given sample, the result is written to the **Accumulator**, which stores computed colors from different samples. The stored colors are then averaged out over the number of samples once the last sample has finished executing (this block keeps track of sample count). The averaged result is then translated into a UART frame to be sent to the host by the **I/O** unit.
+

@@ -41,7 +41,7 @@ module rtu (
 
     // Sample Request Channel
     output reg                        sample_req_valid,   
-    output reg  [3*`COLOR_DEPTH-1:0]  sample_req_color, 
+    output reg  [3*`COLOUR_DEPTH-1:0] sample_req_colour, 
     input  wire                       sample_req_ready
 );
 

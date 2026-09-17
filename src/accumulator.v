@@ -11,7 +11,7 @@ module accumulator (
 
     // Sample Request Channel
     input  wire                      sample_req_valid,   
-    input  wire [3*`COLOR_DEPTH-1:0] sample_req_color, 
+    input  wire [3*`COLOUR_DEPTH-1:0] sample_req_colour, 
     output reg                       sample_req_ready,
 
     ////////////////////////////////////
@@ -20,7 +20,7 @@ module accumulator (
 
     // Pixel Request Channel
     output reg                       pixel_req_valid,    
-    output reg  [3*`COLOR_DEPTH-1:0] pixel_req_color,
+    output reg  [3*`COLOUR_DEPTH-1:0] pixel_req_colour,
     input  wire                      pixel_req_ready
 );
 

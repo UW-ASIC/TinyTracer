@@ -6,9 +6,6 @@ module ray_generator (
     input  wire                rst_n,
     input  wire                mode,            // mode = 0 for primary ray generation, 1 otherwise  
 
-    // Primary Ray Signals
-    input  wire [3*`WLEN-1:0]  camera_viewport, // TBD, ask elvis
-
     // Secondary Ray Signals
     input  wire [3*`WLEN-1:0]  collision_point, // Point of ray-object intersection
     input  wire [3*`WLEN-1:0]  surface_norm,    // Surface normal vector of ray-object intersection

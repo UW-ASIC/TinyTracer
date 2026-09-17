@@ -1,9 +1,9 @@
 {#- Override of the readthedocs theme's nav.html (mkdocs 1.6).
-    A page whose nav title is written as "name: description" renders the
+    A page whose nav title is written as "name — description" renders the
     name in <code>, giving Ara-style sidebar entries. Everything else is
     identical to the stock template. -#}
-{%- set parts = nav_item.title.split(': ', 1) if nav_item.is_page else [nav_item.title] %}
-<a class="{% if not nav_item.is_link %}reference internal{% endif %}{% if nav_item.active%} current{%endif%}" {% if nav_item == page %}href="#"{% elif nav_item.is_page or nav_item.is_link %}href="{{ nav_item.url|url }}"{% endif %}>{% if parts|length == 2 %}<code>{{ parts[0] }}</code>: {{ parts[1] }}{% else %}{{ nav_item.title }}{% endif %}</a>
+{%- set parts = nav_item.title.split(' — ', 1) if nav_item.is_page else [nav_item.title] %}
+<a class="{% if not nav_item.is_link %}reference internal{% endif %}{% if nav_item.active%} current{%endif%}" {% if nav_item == page %}href="#"{% elif nav_item.is_page or nav_item.is_link %}href="{{ nav_item.url|url }}"{% endif %}>{% if parts|length == 2 %}<code>{{ parts[0] }}</code> — {{ parts[1] }}{% else %}{{ nav_item.title }}{% endif %}</a>
 {%- set navlevel = navlevel + 1 %}
 {%- if navlevel <= config.theme.navigation_depth
     and ((nav_item.is_page and nav_item.toc.items
