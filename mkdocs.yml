@@ -16,7 +16,7 @@ nav:
       - "sram_control — SRAM Controller": modules/sram/sram_control.md
   - I/O:
       - "io — Communicates with external device to load scenes and render pixels": modules/io/io.md
-      - "uart — UART frame parser": modules/io/uart.md
+      - "uart — UART transceiver": modules/io/uart.md
   - RTU:
       - "rtu — Instantiates Ray Generator, Intersection Unit, and Shader Core": modules/rtu/rtu.md
       - "ray_generator — Generates primary and secondary rays": modules/rtu/ray_generator.md
@@ -28,7 +28,6 @@ nav:
       - "cordic — CORDIC Unit": modules/fu/cordic.md
       - "multiplier — Fixed-point multiplier": modules/fu/multiplier.md
       - "rng — Random number generator": modules/fu/rng.md
-      - "invsqrt — Computes inverse square roots": modules/fu/invsqrt.md
   - Decode:
       - "decode — Decodes messages between the RTU and FUs": modules/decode/decode.md
   - Register File:

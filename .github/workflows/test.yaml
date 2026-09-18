@@ -9,10 +9,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install iverilog
-        shell: bash
-        run: sudo apt-get update && sudo apt-get install -y iverilog
-
       # Set Python up and install cocotb
       - name: Setup python
         uses: actions/setup-python@v5
@@ -22,6 +18,14 @@ jobs:
       - name: Install Python packages
         shell: bash
         run: pip install -r test/requirements.txt
+
+      # Verilator for the RTL test (Icarus does not support the SystemVerilog
+      # interfaces in src), Icarus for the gate-level test. cocotb 1.9 needs
+      # Verilator >= 5.006, which the Ubuntu 24.04 package satisfies. cocotb 2
+      # would need >= 5.036, e.g. from YosysHQ/setup-oss-cad-suite.
+      - name: Install Verilator and iverilog
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y verilator iverilog
 
       - name: Run tests
         run: |

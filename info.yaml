@@ -4,7 +4,7 @@ project:
   author:       "University of Waterloo ASIC Design Team"      # Your name
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
   description:  "Ray-tracing graphics chip"      # One line description of what your project does
-  language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
+  language:     "SystemVerilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
   clock_hz:     0       # Clock frequency in Hz (or 0 if not applicable)
 
   # How many tiles your design occupies? A single tile is about 167x108 uM.
@@ -17,24 +17,24 @@ project:
   # Source files must be in ./src and you must list each source file separately, one per line.
   # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
-    - "accumulator.v"
-    - "alu.v"
-    - "cordic.v"
-    - "decode.v"
-    - "functional_units.v"
-    - "intersection_unit.v"
-    - "io.v"
-    - "multiplier.v"
-    - "ray_generator.v"
-    - "ray_tracing_unit.v"
-    - "reg_file.v"
-    - "shader_core.v"
-    - "sram_control.v"
-    - "sram_sim.v"
-    - "tinytracer_defs.vh"
-    - "tt_um_tinytracer.v"
-    - "uart.v"
-    - "xorshift_rng.v"
+    - "tinytracer_pkg.sv"
+    - "tinytracer_if.sv"
+    - "tt_um_tinytracer.sv"
+    - "accumulator.sv"
+    - "decode.sv"
+    - "reg_file.sv"
+    - "sram_control.sv"
+    - "functional_units/alu.sv"
+    - "functional_units/cordic.sv"
+    - "functional_units/fu_control.sv"
+    - "functional_units/multiplier.sv"
+    - "functional_units/rng.sv"
+    - "io/io.sv"
+    - "io/uart.sv"
+    - "rtu/intersection_unit.sv"
+    - "rtu/ray_generator.sv"
+    - "rtu/rtu.sv"
+    - "rtu/shader_core.sv"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 pinout:

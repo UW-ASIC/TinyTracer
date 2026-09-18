@@ -2,27 +2,28 @@
 # See https://docs.cocotb.org/en/stable/quickstart.html for more info
 
 # defaults
-SIM ?= icarus
+SIM ?= verilator
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES += accumulator.v
-PROJECT_SOURCES += alu.v
-PROJECT_SOURCES += cordic.v
-PROJECT_SOURCES += decode.v
-PROJECT_SOURCES += functional_units.v
-PROJECT_SOURCES += intersection_unit.v
-PROJECT_SOURCES += io.v
-PROJECT_SOURCES += multiplier.v
-PROJECT_SOURCES += ray_generator.v
-PROJECT_SOURCES += ray_tracing_unit.v
-PROJECT_SOURCES += reg_file.v
-PROJECT_SOURCES += shader_core.v
-PROJECT_SOURCES += sram_control.v
-PROJECT_SOURCES += sram_sim.v
-PROJECT_SOURCES += tinytracer_defs.vh
-PROJECT_SOURCES += tt_um_tinytracer.v
-PROJECT_SOURCES += uart.v
-PROJECT_SOURCES += xorshift_rng.v
+# tinytracer_pkg.sv and tinytracer_if.sv must stay first: every other file uses them.
+PROJECT_SOURCES += tinytracer_pkg.sv
+PROJECT_SOURCES += tinytracer_if.sv
+PROJECT_SOURCES += tt_um_tinytracer.sv
+PROJECT_SOURCES += accumulator.sv
+PROJECT_SOURCES += decode.sv
+PROJECT_SOURCES += reg_file.sv
+PROJECT_SOURCES += sram_control.sv
+PROJECT_SOURCES += functional_units/alu.sv
+PROJECT_SOURCES += functional_units/cordic.sv
+PROJECT_SOURCES += functional_units/fu_control.sv
+PROJECT_SOURCES += functional_units/multiplier.sv
+PROJECT_SOURCES += functional_units/rng.sv
+PROJECT_SOURCES += io/io.sv
+PROJECT_SOURCES += io/uart.sv
+PROJECT_SOURCES += rtu/intersection_unit.sv
+PROJECT_SOURCES += rtu/ray_generator.sv
+PROJECT_SOURCES += rtu/rtu.sv
+PROJECT_SOURCES += rtu/shader_core.sv
 
 ifneq ($(GATES),yes)
 
@@ -32,7 +33,9 @@ VERILOG_SOURCES += $(addprefix $(SRC_DIR)/,$(PROJECT_SOURCES))
 
 else
 
-# Gate level simulation:
+# Gate level simulation: the flat netlist and the sky130 cell models simulate
+# with Icarus, which does not support the SystemVerilog interfaces used in RTL.
+SIM             = icarus
 SIM_BUILD				= sim_build/gl
 COMPILE_ARGS    += -DGL_TEST
 COMPILE_ARGS    += -DFUNCTIONAL
@@ -45,6 +48,12 @@ VERILOG_SOURCES += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_f
 # this gets copied in by the GDS action workflow
 VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
 
+endif
+
+ifeq ($(SIM),verilator)
+# RTL simulation with Verilator: the testbench uses delays and $dumpvars, and
+# lint warnings from unfinished modules must not abort the build.
+EXTRA_ARGS      += --timing --trace -Wno-fatal
 endif
 
 # Allow sharing configuration between design and testbench via `include`:

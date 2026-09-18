@@ -18,7 +18,7 @@
 ## I/O
 
 - [`io`](modules/io/io.md): Communicates with external device to load scenes and render pixels
-- [`uart`](modules/io/uart.md): UART frame parser
+- [`uart`](modules/io/uart.md): UART transceiver
 
 ## RTU
 
@@ -34,7 +34,6 @@
 - [`cordic`](modules/fu/cordic.md): CORDIC Unit
 - [`multiplier`](modules/fu/multiplier.md): Fixed-point multiplier
 - [`rng`](modules/fu/rng.md): Random number generator
-- [`invsqrt`](modules/fu/invsqrt.md): Computes inverse square roots
 
 ## Decode
 
