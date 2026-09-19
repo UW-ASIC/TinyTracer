@@ -13,9 +13,6 @@ module sram_control (
     // RTU <-> SRAM Interface
     sram_rd_if.server                         rtu_rd,
 
-    // CORDIC <-> SRAM Interface
-    sram_rd_if.server                         cordic_rd,
-
     // SRAM Control Signals
     output logic                              wen,
     output logic                              bank_sel,

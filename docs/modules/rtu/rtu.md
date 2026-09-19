@@ -17,9 +17,9 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 | `IMG_H`  |     64      | Output image height |
 | `SPP`  |     8      | Samples per pixel |
 | `MAX_BOUNCES`  |     10      | Ray bounce limit |
-| `BV_BASE`  |     `9'h020`      | Base SRAM address of the bounding volumes |
+| `BV_BASE`  |     `9'h000`      | Base SRAM address of the bounding volumes |
 | `NUM_BV`  |     4      | Number of bounding volumes |
-| `OBJ_BASE`  |     `9'h034`      | Base SRAM address of the primitives |
+| `OBJ_BASE`  |     `9'h014`      | Base SRAM address of the primitives |
 
 ## Ports
 

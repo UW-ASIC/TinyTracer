@@ -149,10 +149,12 @@ package tinytracer_pkg;
   } prim_type_t;
 
   //---------------------------- Memory map ------------------------------------
-  localparam logic [ADDR_WIDTH-1:0] LUT_BASE = 9'h000;
-  localparam logic [ADDR_WIDTH-1:0] BV_BASE  = 9'h020;
+  // Bounding volumes are 5 words each (see docs/encoding/scene.md), so the
+  // primitives start NUM_BV * 5 words after BV_BASE. The CORDIC LUT lives in a
+  // ROM local to the CORDIC unit, not in SRAM.
+  localparam logic [ADDR_WIDTH-1:0] BV_BASE  = 9'h000;
   localparam int                    NUM_BV   = 4;
-  localparam logic [ADDR_WIDTH-1:0] OBJ_BASE = 9'h034;
+  localparam logic [ADDR_WIDTH-1:0] OBJ_BASE = 9'h014;
 
 endpackage
 /* verilator lint_on UNUSEDPARAM */

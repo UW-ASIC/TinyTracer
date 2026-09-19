@@ -11,10 +11,7 @@ module fu_control (
     reg_file_if.user    rf,
 
     // Micro-op Channel
-    micro_if.server     micro,
-    
-    // FU <-> SRAM Interface
-    sram_rd_if.client   cordic_sram
+    micro_if.server     micro
 );
 
 endmodule

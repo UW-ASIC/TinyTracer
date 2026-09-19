@@ -10,10 +10,7 @@ module cordic #(
     input  logic        rst_n,
 
     // FU <-> CORDIC Interface
-    fu_if.server        fu,     
-    
-    // CORDIC <-> SRAM Interface
-    sram_rd_if.client   sram
+    fu_if.server        fu
 );
 
 endmodule

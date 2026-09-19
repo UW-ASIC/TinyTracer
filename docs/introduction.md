@@ -19,11 +19,11 @@ TinyTracer consists of the following components:
 - **Register File**: The Register File is a small set of registers that is used by the FUs to write intermediate results to for more complex multi-step operations like vector dot products.
 - **Accumulator**: The Accumulator is a buffer that holds computed pixel colours from the RTU and averages the results over the number of samples per pixel.
 - **I/O**: The I/O Unit communicates between the host device and TinyTracer, which occurs when a new scene is being loaded into memory or pixel data is being streamed back to the host device.
-- **SRAM**: The SRAM holds bounding volume data, scene information, and LUT values for the CORDIC FU.
+- **SRAM**: The SRAM holds bounding volume data and scene information.
 
 ## Rendering a Frame
 
-A 3D scene is first decomposed into individual objects with positional and material metadata. Following this process, each object is sent as a message from the host to the I/O block to decode UART frames into control and data signals for the SRAM. After scene initialization, the host sends LUT messages to populate the SRAM LUTs for certain arithmetic algorithms. Once the scene and LUT(s) are initialized, the host sends a RENDER message to begin rendering the scene.
+A 3D scene is first decomposed into individual objects with positional and material metadata. Following this process, each object is sent as a message from the host to the I/O block to decode UART frames into control and data signals for the SRAM. Once the scene is initialized, the host sends a RENDER message to begin rendering the scene.
 
 Show memory map figure here (TBD).
 

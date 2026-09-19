@@ -61,7 +61,7 @@ interface fu_if;
                   output resp_done, output resp_result);
 endinterface
 
-// Read channel into the SRAM controller (RTU, CORDIC).
+// Read channel into the SRAM controller (RTU).
 interface sram_rd_if;
   logic                  req_valid;
   logic [ADDR_WIDTH-1:0] req_raddr;

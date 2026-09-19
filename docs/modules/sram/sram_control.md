@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module selects a request from the I/O Unit, RTU, or CORDIC request channel and responds with the appropriate data. This module also maps input addresses to appropriate SRAM control signals for reads and writes.
+This module selects a request from the I/O Unit or RTU request channel and responds with the appropriate data. This module also maps input addresses to appropriate SRAM control signals for reads and writes.
 
 ## Parameters
 
@@ -37,6 +37,5 @@ This module selects a request from the I/O Unit, RTU, or CORDIC request channel 
 |---------------|---------------------------------------|
 | `sram_wr_if`  | SRAM write request channel from the I/O Unit |
 | `sram_rd_if`  | SRAM read request and response channel from the RTU |
-| `sram_rd_if`  | SRAM read request and response channel from CORDIC |
 
 ## Architecture Overview
