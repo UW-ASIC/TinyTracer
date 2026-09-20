@@ -8,9 +8,8 @@ This module instantiates the SRAM, SRAM controller, RTU, Accumulator, Decode Uni
 
 | Name          |   Default    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `ADDR_WIDTH`  |     9      | Width of SRAM addresses               |
+| `ADDR_WIDTH`  |     8      | Width of SRAM addresses               |
 | `DATA_WIDTH`  |     16     | Width of SRAM data words              |
-| `BANK_WIDTH`  |     4      | Width of SRAM bank address            |
 | `IMG_W`       |     4096     | Output image width                    |
 | `IMG_H`       |     4096     | Output image height                   |
 | `SPP`         |     8      | Samples per pixel                     |

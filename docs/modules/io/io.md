@@ -8,7 +8,7 @@ This module instantiates the UART submodule and translates UART frames to contro
 
 | Name          |   Default    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `ADDR_WIDTH`  |     9      | SRAM address width              |
+| `ADDR_WIDTH`  |     8      | SRAM address width              |
 | `DATA_WIDTH`  |     16      | SRAM data width              |
 | `COLOUR_DEPTH`  |     8      | Bits per colour channel             |
 | `RENDER_START`  |     `8'h00`      | RENDER message start byte |

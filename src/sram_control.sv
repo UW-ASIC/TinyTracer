@@ -15,8 +15,7 @@ module sram_control (
 
     // SRAM Control Signals
     output logic                              wen,
-    output logic                              bank_sel,
-    output logic [ADDR_WIDTH-BANK_WIDTH-1:0]  addr,
+    output logic [ADDR_WIDTH-1:0]             addr,
     output logic [DATA_WIDTH-1:0]             din,
     input  logic [DATA_WIDTH-1:0]             dout
 );

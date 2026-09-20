@@ -2,9 +2,8 @@
 package tinytracer_pkg;
 
   //---------------------------- System-wide defaults --------------------------
-  localparam int ADDR_WIDTH   = 9;           // SRAM address width
+  localparam int ADDR_WIDTH   = 8;           // SRAM address width
   localparam int DATA_WIDTH   = 16;          // SRAM word width
-  localparam int BANK_WIDTH   = 4;           // top address bits latched as SRAM bank
   localparam int FCLK         = 25_000_000;  // system clock frequency
   localparam int BAUD         = 115_200;     // UART baud rate
   localparam int IMG_W        = 4096;          // output image width
@@ -152,9 +151,9 @@ package tinytracer_pkg;
   // Bounding volumes are 5 words each (see docs/encoding/scene.md), so the
   // primitives start NUM_BV * 5 words after BV_BASE. The CORDIC LUT lives in a
   // ROM local to the CORDIC unit, not in SRAM.
-  localparam logic [ADDR_WIDTH-1:0] BV_BASE  = 9'h000;
+  localparam logic [ADDR_WIDTH-1:0] BV_BASE  = 8'h00;
   localparam int                    NUM_BV   = 4;
-  localparam logic [ADDR_WIDTH-1:0] OBJ_BASE = 9'h014;
+  localparam logic [ADDR_WIDTH-1:0] OBJ_BASE = 8'h14;
 
 endpackage
 /* verilator lint_on UNUSEDPARAM */

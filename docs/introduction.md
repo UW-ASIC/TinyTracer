@@ -9,7 +9,7 @@ UART link. Due to area limitations, TinyTracer renders scenes *serially*, comput
 
 ## Architectural Overview
 
-![TinyTracer block diagram](TT_BlockDiagram.svg)
+![TinyTracer block diagram](./svg/TT_BlockDiagram.svg)
 
 TinyTracer consists of the following components:
 
