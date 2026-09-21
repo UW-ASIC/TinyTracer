@@ -86,12 +86,14 @@ interface sram_wr_if;
   modport server (input  req_valid, input  req_wen, input  req_waddr, input  req_wdata, output req_ready);
 endinterface
 
-// Register file single read/write port.
-interface reg_file_if;
-  logic            wen;
-  logic [2:0]      addr;
-  logic [WLEN-1:0] wdata;
-  logic [WLEN-1:0] rdata;
-  modport user (output wen, output addr, output wdata, input  rdata);
-  modport mem  (input  wen, input  addr, input  wdata, output rdata);
+// I/O -> RTU: one-cycle render strobe plus the image dimensions. img_w and
+// img_h are each two RENDER message bytes (low byte first, upper 4 bits of
+// the high byte unused) and are held by the I/O unit until the next RENDER
+// message.
+interface render_if;
+  logic                 render;
+  logic [DIM_WIDTH-1:0] img_w;
+  logic [DIM_WIDTH-1:0] img_h;
+  modport src  (output render, output img_w, output img_h);
+  modport sink (input  render, input  img_w, input  img_h);
 endinterface

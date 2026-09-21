@@ -7,7 +7,11 @@ module io (
     input  logic        clk,
     input  logic        rst_n,
 
-    output logic        render,   // One-cycle pulse to RTU when a RENDER message is parsed
+    ///////////////////////////
+    //  I/O -> RTU Interface //
+    ///////////////////////////
+
+    render_if.src       render,   // render strobe and image dimensions, to RTU
 
     //////////////////////
     //  UART Interface  //

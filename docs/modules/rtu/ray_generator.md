@@ -10,8 +10,6 @@ This module generates primary and secondary rays to check for ray-object interse
 |---------------|:------------:|---------------------------------------|
 | `WLEN`  |     16      | Word length              |
 | `MACRO_W`  |     101     | Macro operation width             |
-| `IMG_W`  |     64      | Output image width |
-| `IMG_H`  |     64      | Output image height |
 
 ## Ports
 

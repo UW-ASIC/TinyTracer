@@ -20,12 +20,23 @@ This module is a top-level wrapper that instantiates the 4 functional units (ALU
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
+| `rf_rdata1`  |     `WLEN`      | Register file read port 1 data |
+| `rf_rdata2`  |     `WLEN`      | Register file read port 2 data |
+
+### Outputs
+
+| Name          |   Width    | Description                           |
+|---------------|:------------:|---------------------------------------|
+| `rf_wen`  |     1      | Register file write enable |
+| `rf_waddr`  |     3      | Register file write address |
+| `rf_wdata`  |     `WLEN`      | Register file write data |
+| `rf_raddr1`  |     3      | Register file read port 1 address |
+| `rf_raddr2`  |     3      | Register file read port 2 address |
 
 ### Interfaces
 
 | Type          | Description                           |
 |---------------|---------------------------------------|
-| `reg_file_if`  | Register file read/write port |
 | `micro_if`  | Micro-op request and response channel from the Decode Unit |
 
 ## Architecture Overview

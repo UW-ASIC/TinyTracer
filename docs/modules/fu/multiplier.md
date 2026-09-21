@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module is a fixed-point multiplier using the TBD algorithm (replace TBD with implemented algorithm later).
+This module is a pipelined fixed-point multiplier using the TBD algorithm (replace TBD with implemented algorithm later).
 
 ## Parameters
 

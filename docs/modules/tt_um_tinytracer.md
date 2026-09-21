@@ -10,8 +10,6 @@ This module instantiates the SRAM, SRAM controller, RTU, Accumulator, Decode Uni
 |---------------|:------------:|---------------------------------------|
 | `ADDR_WIDTH`  |     8      | Width of SRAM addresses               |
 | `DATA_WIDTH`  |     16     | Width of SRAM data words              |
-| `IMG_W`       |     4096     | Output image width                    |
-| `IMG_H`       |     4096     | Output image height                   |
 | `SPP`         |     8      | Samples per pixel                     |
 | `MAX_BOUNCES` |     10     | Ray bounce limit                      |
 | `COLOUR_DEPTH` |     8      | Bits per colour channel           |

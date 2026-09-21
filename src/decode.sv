@@ -13,8 +13,12 @@ module decode (
     // Decode <-> FU Interface
     micro_if.client     micro,
 
-    // Register File Port
-    reg_file_if.user    rf
+    // Register File Ports (write port for INITIALIZE, read port 1 for LOAD)
+    output logic            rf_wen,
+    output logic [2:0]      rf_waddr,
+    output logic [WLEN-1:0] rf_wdata,
+    output logic [2:0]      rf_raddr,
+    input  logic [WLEN-1:0] rf_rdata
 );
 
 endmodule

@@ -7,8 +7,16 @@ module reg_file (
     input  logic        clk,
     input  logic        rst_n,
 
-    // Single Read/Write Port
-    reg_file_if.mem     rf
+    // Write Port
+    input  logic            wen,
+    input  logic [2:0]      waddr,
+    input  logic [WLEN-1:0] wdata,
+
+    // Read Ports
+    input  logic [2:0]      raddr1,
+    output logic [WLEN-1:0] rdata1,
+    input  logic [2:0]      raddr2,
+    output logic [WLEN-1:0] rdata2
 );
 
 endmodule

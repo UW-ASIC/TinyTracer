@@ -36,6 +36,8 @@ $$
 $$
 
 * `MACRO_W` = 101 bits
+* `op.u` and `op.v` correspond to operands $\mathbf{\vec{u}}$ and $\mathbf{\vec{v}}$ 
+* `op.u.x`, `op.u.y`, `op.u.z` correspond to $u_1$, $u_2$, and $u_3$ respectively for $\mathbf{\vec{u}}$ 
 * For scalar operations, use $u_1$ and $v_1$ as operands
 * For scalar-vector multiplication, use $u_1$ as scalar multiplier
 * For normalization in sphere mode, use $u_1$ as sphere radius value
@@ -154,18 +156,18 @@ Operation: $\vec{w} = \vec{u}-\vec{v}$
 Operation: $\vec{w} = u_1*\vec{v}$
 
 * __Initial Register File State__:
-    * R0 $\leftarrow$ $u_1$
-    * R1 $\leftarrow$ $v_1$
-    * R2 $\leftarrow$ $v_2$
-    * R3 $\leftarrow$ $v_3$
+    * R0 $\leftarrow$ $v_1$
+    * R1 $\leftarrow$ $v_2$
+    * R2 $\leftarrow$ $v_3$
+    * R3 $\leftarrow$ $u_1$
 * __Instructions__:
-    * MUL R1 $\leftarrow$ R0, R1 ($u_1$\*$v_1$)
-    * MUL R2 $\leftarrow$ R0, R2 ($u_1$\*$v_2$)
-    * MUL R3 $\leftarrow$ R0, R3 ($u_1$\*$v_3$)
+    * MUL R0 $\leftarrow$ R0, R3 ($u_1$\*$v_1$)
+    * MUL R1 $\leftarrow$ R1, R3 ($u_1$\*$v_2$)
+    * MUL R2 $\leftarrow$ R2, R3 ($u_1$\*$v_3$)
 * __Output Mapping__:
-    * $w_1$ = R1
-    * $w_2$ = R2
-    * $w_3$ = R3
+    * $w_1$ = R0
+    * $w_2$ = R1
+    * $w_3$ = R2
 
 #### Vector Dot Product
 
@@ -199,19 +201,19 @@ Operation: $\vec{w} = \vec{u} \times \vec{v}$
     * R4 $\leftarrow$ $v_2$
     * R5 $\leftarrow$ $v_3$
 * __Instructions__:
-    * MUL R6 $\leftarrow$ R0, R5 ($u_1$\*$v_3$)
-    * MUL R0 $\leftarrow$ R0, R4 ($u_1$\*$v_2$)
-    * MUL R5 $\leftarrow$ R1, R5 ($u_2$\*$v_3$)
-    * MUL R1 $\leftarrow$ R1, R3 ($u_2$\*$v_1$)
-    * SUB R0 $\leftarrow$ R0, R1 ($u_1$\*$v_2$ - $u_2$\*$v_1$)
-    * MUL R1 $\leftarrow$ R2, R4 ($u_3$\*$v_2$)
-    * SUB R1 $\leftarrow$ R5, R1 ($u_2$\*$v_3$ - $u_3$\*$v_2$)
+    * MUL R6 $\leftarrow$ R2, R4 ($u_3$\*$v_2$)
     * MUL R2 $\leftarrow$ R2, R3 ($u_3$\*$v_1$)
-    * SUB R2 $\leftarrow$ R2, R6 ($u_3$\*$v_1$ - $u_1$\*$v_3$)
+    * MUL R4 $\leftarrow$ R0, R4 ($u_1$\*$v_2$)
+    * MUL R3 $\leftarrow$ R1, R3 ($u_2$\*$v_1$)
+    * MUL R1 $\leftarrow$ R1, R5 ($u_2$\*$v_3$)
+    * MUL R5 $\leftarrow$ R0, R5 ($u_1$\*$v_3$)
+    * SUB R0 $\leftarrow$ R1, R6 ($u_2$\*$v_3$ - $u_3$\*$v_2$)
+    * SUB R1 $\leftarrow$ R2, R5 ($u_3$\*$v_1$ - $u_1$\*$v_3$)
+    * SUB R2 $\leftarrow$ R4, R3 ($u_1$\*$v_2$ - $u_2$\*$v_1$)
 * __Output Mapping__:
-    * $w_1$ = R1
-    * $w_2$ = R2
-    * $w_3$ = R0
+    * $w_1$ = R0
+    * $w_2$ = R1
+    * $w_3$ = R2
 
 #### Vector Normalization
 

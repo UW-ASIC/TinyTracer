@@ -4,11 +4,12 @@
 
 __RENDER Messages__:
 
-| RENDER_START |
-|:----:|
-| 0x00 |
+| RENDER_START | IMG_W_LOW | IMG_W_HIGH | IMG_H_LOW | IMG_H_HIGH |
+|:----:|:----:|:----:|:----:|:----:|
+| 0x00 | Image width lower byte | Image width upper byte | Image height lower byte | Image height upper byte |
 
-* Renders the scene stored in SRAM by setting the RTU's `render` input to 1 for one cycle
+* Renders the scene stored in SRAM by pulsing the RTU's `render` signal for one cycle
+* Configures the output image width and height
 
 __OBJECT Messages__:
 

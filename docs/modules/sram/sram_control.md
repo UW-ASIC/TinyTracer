@@ -38,7 +38,7 @@ This module selects a request from the I/O Unit or RTU request channel and respo
 
 ## Architecture Overview
 
-![SRAM Control](../../svg/TT_SRAM_Control.svg)
+![SRAM Control Block](../../svg/TT_SRAM_Control.svg)
 
 ### Truth Table
 
@@ -52,6 +52,8 @@ This module selects a request from the I/O Unit or RTU request channel and respo
 The SRAM controller is only used by the I/O Unit and the RTU. Hence, there is a dedicated write port for the I/O Unit and a dedicated read port for the RTU. The write port contains a request channel, while the read port contains both request and response channels. Both types of channels use standard ready/valid handshake signals.
 
 Since the flow of data on TinyTracer is completely sequential, there is guaranteed to be at most one module making a request to the SRAM controller. Hence, the valid bits of the I/O Unit and RTU request channels can determine which module's request to service. The `sel` signal indicates whether the SRAM will receive data from the I/O Unit or RTU. `sel` = 0 indicates the SRAM is receiving a request from the I/O Unit while `sel` = 1 indicates the SRAM is receiving a request from the RTU. The `req_valid` signal indicates whether the SRAM is receiving a valid request or not. If `req_valid` is 1, then the SRAM controller will use the `sel` signal to multiplex between the I/O Unit and RTU's requests. 
+
+![SRAM Control Microarchitecture](../../svg/TT_SRAM_Control2.svg)
 
 ### Timing Behaviour
 

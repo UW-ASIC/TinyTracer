@@ -23,3 +23,11 @@
   position: sticky;
   top: 0;
 }
+
+/* Light rule above each ## section, as on the Ara docs. Same colour and
+   24px spacing the theme gives a bare <hr>; the paragraph above already
+   carries a 24px bottom margin, so the line sits centred between sections. */
+.rst-content h2 {
+  border-top: 1px solid #e1e4e5;
+  padding-top: 24px;
+}

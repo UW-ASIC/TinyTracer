@@ -29,7 +29,6 @@ This module instantiates the UART submodule and translates UART frames to contro
 
 | Name          |   Width    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `render`  |     1      | RTU one-cycle render enable signal |
 | `uart_tx`  |     1      | UART serial output to the host device |
 
 ### Interfaces
@@ -38,5 +37,6 @@ This module instantiates the UART submodule and translates UART frames to contro
 |---------------|---------------------------------------|
 | `colour_if`  | Pixel colour stream from the Accumulator |
 | `sram_wr_if`  | SRAM write request channel |
+| `render_if`  | Render strobe and image dimensions to the RTU |
 
 ## Architecture Overview

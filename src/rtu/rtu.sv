@@ -7,7 +7,8 @@ module rtu (
     input  logic        clk,
     input  logic        rst_n,
 
-    input  logic        render,
+    // I/O <-> RTU Interface
+    render_if.sink      render,   // render strobe and image dimensions, from I/O
 
     // RTU <-> SRAM Interface
     sram_rd_if.client   sram,

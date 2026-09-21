@@ -13,8 +13,6 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 | `WLEN`  |     16      | Word length              |
 | `MACRO_W`  |     101     | Macro operation width             |
 | `COLOUR_DEPTH`  |     8    | Bits per colour channel            |
-| `IMG_W`  |     64      | Output image width |
-| `IMG_H`  |     64      | Output image height |
 | `SPP`  |     8      | Samples per pixel |
 | `MAX_BOUNCES`  |     10      | Ray bounce limit |
 | `BV_BASE`  |     `8'h00`      | Base SRAM address of the bounding volumes |
@@ -29,7 +27,6 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
-| `render`  |     1      | Enables the scene in SRAM to be rendered |
 
 ### Interfaces
 
@@ -38,5 +35,6 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 | `macro_if`  | Macro-op request and response channel to the Decode Unit |
 | `sram_rd_if`  | SRAM read request and response channel |
 | `colour_if`  | Sample pixel colour stream to the Accumulator |
+| `render_if`  | Render strobe and image dimensions from the I/O Unit |
 
 ## Architecture Overview
