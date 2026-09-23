@@ -5,8 +5,6 @@ package tinytracer_pkg;
   localparam int ADDR_WIDTH   = 8;           // SRAM address width
   localparam int DATA_WIDTH   = 16;          // SRAM word width
   localparam int DIM_WIDTH    = 12;          // image width/height (two RENDER bytes each)
-  localparam int FCLK         = 25_000_000;  // system clock frequency
-  localparam int BAUD         = 115_200;     // UART baud rate
   localparam int SPP          = 8;           // samples per pixel (power of two)
   localparam int COLOUR_DEPTH = 8;           // bits per colour channel
   localparam int MAX_BOUNCES  = 10;          // maximum ray bounces

@@ -33,4 +33,8 @@ __PIXEL Messages__
 
 * Transmits a single pixel to the host device to display
 
+## Data Link Escape
+To be able to transmit data values equal to these message start flags, we utilize a specialized byte code, a data link escape (`DLE`) which is used to signify that the next byte is data, not a control message.
+A DLE has a value of `0x03`.
 
+An example of using the DLE byte would be to transmit the value `0x03`, we would have to transmit 2 bytes: `0x03`(DLE) followed by `0x03` (0x03 as data).

@@ -41,7 +41,7 @@ The register file holds eight `WLEN`-bit registers, R0 to R7, in flip-flops. Mic
 
 - __Write port__: on the rising clock edge, `wdata` is written to register `waddr` when `wen` is high.
 - __Read ports__: `rdata1` and `rdata2` are combinational reads of registers `raddr1` and `raddr2`. The two ports are independent and may address the same register.
-- __Read-during-write__: there is no bypass from the write port to the read ports. A value written on a clock edge is visible on the read ports from the following cycle, and reading the register being written in the same cycle returns the old value.
+- __Read-during-write__: there is no bypass from the write port to the read ports. A value written on a clock edge is visible on the read ports from the following cycle, and reading the register being written in the same cycle returns the old value. We will include a debug signal for this equation, but the FU control and decoder should avoid this case.
 - __Reset__: all registers are cleared to zero.
 
 The Decode Unit and FU Control are the two masters of the register file. The Decode Unit uses the write port to initialize operands and read port 1 to read macro-op results. FU Control uses both read ports to fetch micro-op operands and the write port to write micro-op results. Only one master drives the ports at a time, since the Decode Unit only accesses the register file while no micro-ops are in flight.

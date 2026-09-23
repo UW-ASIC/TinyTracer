@@ -6,7 +6,11 @@ description: "I/O Unit that translates UART frames into SRAM writes to load scen
 
 ## Overview
 
-This module instantiates the UART submodule and translates UART frames to control and data signals for SRAM to initialize scene objects. This module also decomposes pixel colour data into UART frames to send to the host device.
+This module instantiates the UART submodule and translates UART frames to control and data signals for both the SRAM, to initialize scene objects, and the RTU, to start a rendering. This module also decomposes pixel colour data into UART frames to send to the host device.
+
+A key part of this translation is the handling of byte streams as UART frames, described in the uart_frame page of the docs; inserting and removing control bytes from the stream as needed.
+
+This module also instantiates the Clock Divider that feeds the UART, and has control logic for setting the parameters of the clock divider.
 
 ## Parameters
 
@@ -18,6 +22,7 @@ This module instantiates the UART submodule and translates UART frames to contro
 | `RENDER_START`  |     `8'h00`      | RENDER message start byte |
 | `OBJ_START`  |     `8'h01`      | OBJECT message start byte |
 | `PIXEL_START`  |     `8'h00`      | PIXEL message start byte |
+| `DLE` | `8'h03` | DLE byte
 
 ## Ports
 
@@ -28,6 +33,8 @@ This module instantiates the UART submodule and translates UART frames to contro
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `uart_rx`  |     1      | UART serial input from the host device |
+| `clkdiv_ctl` | 2 |Clock divider parameter control|
+|`clkdiv_data`|8|Clock divider parameter data
 
 ### Outputs
 
@@ -44,3 +51,15 @@ This module instantiates the UART submodule and translates UART frames to contro
 | `render_if`  | Render strobe and image dimensions to the RTU |
 
 ## Architecture Overview
+
+### Clock Divider programming
+To be fully flexible with the baud rate of our chip, we want to be able to define the clock division ratios of our chip externally.
+To do so, we use the following meanings of `clkdiv_ctl`:
+
+| `clkdiv_ctl` | meaning |
+|----|----|
+| `2’b10` | b <= `clkdiv_data` |
+| `2'b11` | c <= `clkdiv_data` |
+| otherwise | do nothing |
+
+This does mean that we need a CDC for this data to prevent metastability glitches.

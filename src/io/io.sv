@@ -7,6 +7,9 @@ module io (
     input  logic        clk,
     input  logic        rst_n,
 
+    input  logic [1:0]  clkdiv_ctl,
+    input  logic [7:0]  clkdiv_data,
+
     ///////////////////////////
     //  I/O -> RTU Interface //
     ///////////////////////////
@@ -40,6 +43,10 @@ module io (
     stream_if #(.W(8)) rx_bytes ();  // receive byte stream, from UART
     stream_if #(.W(8)) tx_bytes ();  // transmit byte stream, to UART
 
+    logic [7:0] b_reg;
+    logic [7:0] c_reg;
+    logic clkq;
+
     uart u_uart (
         .clk   (clk),
         .rst_n (rst_n),
@@ -47,6 +54,14 @@ module io (
         .tx    (tx_bytes),
         .TT_RX (uart_rx),
         .TT_TX (uart_tx)
+    );
+
+    clkdiv u_clkdiv (
+        .clk(clk),
+        .rst_n(rst_n),
+        .b(b_reg),
+        .c(c_reg),
+        .q(clkq)
     );
 
 endmodule
