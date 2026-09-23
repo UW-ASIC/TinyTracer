@@ -16,6 +16,13 @@
   color: #2980b9;
 }
 
+/* The theme's theme_extra.css separately colours inline code inside a visited
+   link purple (a:visited code), which catches module names both in the page
+   body and in the column. Let that code take its link's colour instead. */
+a:visited code {
+  color: inherit;
+}
+
 /* Keep the title and search box pinned at the top of the column while the
    module list scrolls underneath. The block already has a solid background
    and z-index from the theme. */
