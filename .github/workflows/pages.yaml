@@ -1,0 +1,57 @@
+name: pages
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'theme_overrides/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/pages.yaml'
+  workflow_dispatch:
+
+# Pages source must be set to "GitHub Actions" in the repo settings.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let an in-progress deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python packages
+        shell: bash
+        run: pip install -r docs/requirements.txt
+
+      - name: Build site
+        shell: bash
+        run: mkdocs build
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
