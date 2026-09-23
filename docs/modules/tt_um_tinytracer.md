@@ -1,3 +1,7 @@
+---
+description: "Top-level Tiny Tapeout module for TinyTracer, instantiating the SRAM controller, RTU, Decode Unit, functional units, and I/O Unit."
+---
+
 # `tt_um_tinytracer` — Top-Level Module for TinyTracer
 
 ## Overview

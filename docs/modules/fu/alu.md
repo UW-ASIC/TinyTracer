@@ -1,3 +1,7 @@
+---
+description: "Fixed-point ALU supporting addition, subtraction, and comparison."
+---
+
 # `alu` — Fixed-point ALU
 
 ## Overview

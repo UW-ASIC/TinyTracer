@@ -1,3 +1,7 @@
+---
+description: "Encoding of the macro-ops the RTU issues and the micro-ops the Decode Unit sends to the functional units."
+---
+
 # Instruction Encoding
 
 ## Macro-Operations

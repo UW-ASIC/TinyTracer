@@ -1,3 +1,7 @@
+---
+description: "UART transceiver that parses scene and render commands from the host and transmits pixel colour frames back."
+---
+
 # `uart` — UART frame parser
 
 ## Overview

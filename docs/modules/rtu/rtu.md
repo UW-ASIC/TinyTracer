@@ -1,3 +1,7 @@
+---
+description: "Ray Tracing Unit that sequences the ray-tracing algorithm with an FSM and issues instructions to the Decode Unit."
+---
+
 # `rtu` — Instantiates Ray Generator, Intersection Unit, and Shader Core
 
 ## Overview

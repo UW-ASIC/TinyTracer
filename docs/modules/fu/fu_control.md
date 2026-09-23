@@ -1,3 +1,7 @@
+---
+description: "Wrapper that instantiates TinyTracer's functional units: ALU, CORDIC, multiplier, and RNG."
+---
+
 # `fu_control` — Instantiates functional units
 
 ## Overview

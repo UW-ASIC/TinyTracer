@@ -1,3 +1,7 @@
+---
+description: "Generates primary rays from the camera and secondary rays from hit surfaces."
+---
+
 # `ray_generator` — Generates primary and secondary rays
 
 ## Overview

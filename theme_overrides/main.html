@@ -1,0 +1,11 @@
+{#- Extends the theme's base.html, which only emits <meta name="description"> on the
+    home page (from site_description). Subpages set theirs with a "description:"
+    entry in their front matter. -#}
+{% extends "base.html" %}
+
+{%- block site_meta %}
+  {{ super() }}
+  {%- if page and not page.is_homepage and page.meta and page.meta.description %}
+    <meta name="description" content="{{ page.meta.description|e }}" />
+  {%- endif %}
+{%- endblock %}

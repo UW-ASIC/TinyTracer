@@ -1,3 +1,7 @@
+---
+description: "Colours a ray from its intersection result, the hit object's material, and the sky colour."
+---
+
 # `shader_core` — Colours pixels based on ray-object intersection results and material metadata
 
 ## Overview

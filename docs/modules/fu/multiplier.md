@@ -1,3 +1,7 @@
+---
+description: "Pipelined fixed-point multiplier."
+---
+
 # `multiplier` — Fixed-point multiplier
 
 ## Overview

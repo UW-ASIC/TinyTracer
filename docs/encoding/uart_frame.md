@@ -1,3 +1,7 @@
+---
+description: "Format of the UART frames exchanged between the host device and TinyTracer to load scenes and stream rendered pixels."
+---
+
 # UART Frame Encoding
 
 ## Input Frames

@@ -1,3 +1,7 @@
+---
+description: "Xorshift LFSR random number generator."
+---
+
 # `rng` — Random number generator
 
 ## Overview

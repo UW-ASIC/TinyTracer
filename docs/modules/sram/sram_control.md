@@ -1,3 +1,7 @@
+---
+description: "SRAM controller that arbitrates between I/O Unit and RTU requests and returns the requested data."
+---
+
 # `sram_control` — SRAM Controller
 
 ## Overview

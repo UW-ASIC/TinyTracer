@@ -1,3 +1,7 @@
+---
+description: "Register file with one write port and two read ports holding operands and intermediate micro-op results."
+---
+
 # `reg_file` — Register file for the FUs
 
 ## Overview

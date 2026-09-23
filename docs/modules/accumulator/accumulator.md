@@ -1,3 +1,7 @@
+---
+description: "Buffer that averages per-pixel sample colours from the RTU before sending them to the I/O Unit."
+---
+
 # `accumulator` — Buffer between the RTU and I/O Unit
 
 ## Overview

@@ -1,3 +1,7 @@
+---
+description: "How TinyTracer encodes scene objects, their shapes and materials, as words in SRAM."
+---
+
 # Scene Encoding
 
 * Each object has its shape and material encoded in a custom format

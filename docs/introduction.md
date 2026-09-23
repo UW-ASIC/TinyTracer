@@ -1,3 +1,7 @@
+---
+description: "Introduction to TinyTracer, a serial ray-tracing graphics chip for Tiny Tapeout, and an overview of its architecture."
+---
+
 # Introduction
 
 ## Introduction to TinyTracer

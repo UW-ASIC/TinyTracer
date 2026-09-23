@@ -1,3 +1,7 @@
+---
+description: "Fixed-point CORDIC unit for division, square roots, reciprocals, and trigonometric functions."
+---
+
 # `cordic` — CORDIC Unit
 
 ## Overview

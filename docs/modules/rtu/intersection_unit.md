@@ -1,3 +1,7 @@
+---
+description: "Computes ray-sphere and ray-triangle intersections and returns the hit point."
+---
+
 # `intersection_unit` — Computes ray-object intersection
 
 ## Overview

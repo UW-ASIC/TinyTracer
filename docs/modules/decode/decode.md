@@ -1,3 +1,7 @@
+---
+description: "Decode Unit that expands RTU macro-ops into micro-ops for the functional units and assembles their results."
+---
+
 # `decode` — Decodes messages between the RTU and FUs
 
 ## Overview

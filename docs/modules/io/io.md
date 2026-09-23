@@ -1,3 +1,7 @@
+---
+description: "I/O Unit that translates UART frames into SRAM writes to load scenes and sends rendered pixel colours back to the host."
+---
+
 # `io` — Communicates with external device to load scenes and render pixels
 
 ## Overview

@@ -1,4 +1,6 @@
 site_name: TinyTracer
+site_description: Design documentation for TinyTracer, a ray-tracing graphics chip for Tiny Tapeout by the University of Waterloo ASIC Design Team.
+site_url: https://uw-asic.github.io/TinyTracer/
 
 # Sidebar entries are written as "name — description". The override in
 # theme_overrides/nav.html renders the name in code font.
