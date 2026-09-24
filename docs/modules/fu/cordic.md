@@ -34,7 +34,12 @@ This module is a fixed-point CORDIC engine enabling support for division, cosine
 | `y_out` |     N       | $y_N$ value output |
 | `z_out` |     N       | $z_N$ value output |
 | `busy` |     1       | Output for when engine is busy |
-| `fu`  |     [`fu_if.server`](../tinytracer_if.md#fu_if)      | Micro-op request and response channel from FU Control |
+
+### Interfaces
+
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`fu_if.server`](../tinytracer_if.md#fu_if)  | Micro-op request and response channel from FU Control |
 
 ## Architecture Overview
 

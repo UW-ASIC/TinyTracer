@@ -27,7 +27,6 @@ This module decomposes complex macro-ops from the RTU into simple micro-ops that
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `rf_rdata`  |     `WLEN`      | Register file read port 1 data |
-| `macro`  |     [`macro_if.server`](../tinytracer_if.md#macro_if)      | Macro-op request and response channel from the RTU |
 
 ### Outputs
 
@@ -37,7 +36,13 @@ This module decomposes complex macro-ops from the RTU into simple micro-ops that
 | `rf_waddr`  |     3      | Register file write address |
 | `rf_wdata`  |     `WLEN`      | Register file write data |
 | `rf_raddr`  |     3      | Register file read port 1 address |
-| `micro`  |     [`micro_if.client`](../tinytracer_if.md#micro_if)      | Micro-op request and response channel to FU Control |
+
+### Interfaces
+
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`macro_if.server`](../tinytracer_if.md#macro_if)  | Macro-op request and response channel from the RTU |
+| [`micro_if.client`](../tinytracer_if.md#micro_if)  | Micro-op request and response channel to FU Control |
 
 ## Architecture Overview
 

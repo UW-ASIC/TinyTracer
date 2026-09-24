@@ -26,7 +26,6 @@ This module is a top-level wrapper that instantiates the 3 functional units (ALU
 | `rst_n`  |     1      | Active-low reset |
 | `rf_rdata1`  |     `WLEN`      | Register file read port 1 data |
 | `rf_rdata2`  |     `WLEN`      | Register file read port 2 data |
-| `micro`  |     [`micro_if.server`](../tinytracer_if.md#micro_if)      | Micro-op request and response channel from the Decode Unit |
 
 ### Outputs
 
@@ -37,5 +36,11 @@ This module is a top-level wrapper that instantiates the 3 functional units (ALU
 | `rf_wdata`  |     `WLEN`      | Register file write data |
 | `rf_raddr1`  |     3      | Register file read port 1 address |
 | `rf_raddr2`  |     3      | Register file read port 2 address |
+
+### Interfaces
+
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`micro_if.server`](../tinytracer_if.md#micro_if)  | Micro-op request and response channel from the Decode Unit |
 
 ## Architecture Overview

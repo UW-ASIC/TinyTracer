@@ -31,14 +31,14 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
-| `render`  |     [`render_if.sink`](../tinytracer_if.md#render_if)      | Render strobe and image dimensions from the I/O Unit |
 
-### Outputs
+### Interfaces
 
-| Name          |   Width    | Description                           |
-|---------------|:------------:|---------------------------------------|
-| `sram`  |     [`sram_rd_if.client`](../tinytracer_if.md#sram_rd_if)      | SRAM read request and response channel |
-| `macro`  |     [`macro_if.client`](../tinytracer_if.md#macro_if)      | Macro-op request and response channel to the Decode Unit |
-| `sample`  |     [`colour_if.src`](../tinytracer_if.md#colour_if)      | Sample pixel colour stream to the Accumulator |
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`render_if.sink`](../tinytracer_if.md#render_if)  | Render strobe and image dimensions from the I/O Unit |
+| [`sram_rd_if.client`](../tinytracer_if.md#sram_rd_if)  | SRAM read request and response channel |
+| [`macro_if.client`](../tinytracer_if.md#macro_if)  | Macro-op request and response channel to the Decode Unit |
+| [`colour_if.src`](../tinytracer_if.md#colour_if)  | Sample pixel colour stream to the Accumulator |
 
 ## Architecture Overview

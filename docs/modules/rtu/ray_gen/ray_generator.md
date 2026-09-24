@@ -35,6 +35,11 @@ This module generates primary and secondary rays to check for ray-object interse
 | `gen_ray_origin`  |     struct      | Origin of generated ray |
 | `gen_ray_dir`  |     struct      | Direction of generated ray |
 | `gen_ray_valid`  |     1      | Generated ray valid |
-| `macro`  |     [`macro_if.client`](../../tinytracer_if.md#macro_if)      | Macro-op request and response channel to the Decode Unit |
+
+### Interfaces
+
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`macro_if.client`](../../tinytracer_if.md#macro_if)  | Macro-op request and response channel to the Decode Unit |
 
 ## Architecture Overview

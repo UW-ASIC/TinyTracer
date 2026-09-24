@@ -23,13 +23,13 @@ This module stores sampled pixel colours from the RTU and computes their average
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
-| `sample`  |     [`colour_if.sink`](../tinytracer_if.md#colour_if)      | Sample colour stream from the RTU |
 
-### Outputs
+### Interfaces
 
-| Name          |   Width    | Description                           |
-|---------------|:------------:|---------------------------------------|
-| `pixel`  |     [`colour_if.src`](../tinytracer_if.md#colour_if)      | Pixel colour stream to the I/O Unit |
+| Type          | Description                           |
+|---------------|---------------------------------------|
+| [`colour_if.sink`](../tinytracer_if.md#colour_if)  | Sample colour stream from the RTU |
+| [`colour_if.src`](../tinytracer_if.md#colour_if)  | Pixel colour stream to the I/O Unit |
 
 ## Architecture Overview
 

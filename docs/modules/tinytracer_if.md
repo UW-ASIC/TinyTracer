@@ -6,7 +6,7 @@ description: "SystemVerilog interfaces that connect TinyTracer's modules, with t
 
 ## Overview
 
-TinyTracer's modules talk to each other through the SystemVerilog interfaces defined in `src/tinytracer_if.sv`. Each interface bundles the signals of one channel and has two modports, one for each end of the channel. A module doc lists an interface port under Inputs when the module takes the receiving modport (`server` or `sink`), and under Outputs when it takes the sending modport (`client` or `src`).
+TinyTracer's modules talk to each other through the SystemVerilog interfaces defined in `src/tinytracer_if.sv`. Each interface bundles the signals of one channel and has two modports, one for each end of the channel. Each module doc lists its interface ports in an Interfaces section as `interface.modport`, e.g. `macro_if.client`.
 
 Most channels use a valid/ready handshake: a transfer happens on a cycle where both `valid` and `ready` are high.
 
