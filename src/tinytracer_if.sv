@@ -46,7 +46,7 @@ interface micro_if;
 endinterface
 
 // FU Control <-> one functional unit. req_opcode is alu_op_t for the ALU and
-// cordic_op_t for CORDIC; the multiplier and RNG ignore it (and the RNG op2).
+// cordic_op_t for CORDIC; the multiplier ignores it.
 interface fu_if;
   logic            req_valid;
   logic [WLEN-1:0] req_op1;

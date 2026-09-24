@@ -18,19 +18,14 @@ This module parses UART messages sent from the host device, processing input com
 | `rst_n`  |     1      | Active-low reset |
 | `clk_q`  | 1  | Divided clock for UART transmission - is at 16x baud rate |
 | `uart_rx`  |     1      | UART serial input from the host device |
+| `tx`  |     [`stream_if.sink`](../tinytracer_if.md#stream_if)      | UART byte input from IO block |
 
 ### Outputs
 
 | Name          |   Width    | Description                           |
 |---------------|:------------:|---------------------------------------|
 | `uart_tx`  |     1      | UART serial output to the host device |
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `uart_in` | `stream_if`.sink(W=8) | UART byte input from IO block |
-| `uart_out` | `stream_if`.src(W=8) | UART byte output to IO block|
+| `rx`  |     [`stream_if.src`](../tinytracer_if.md#stream_if)      | UART byte output to IO block |
 
 ## Architecture Overview
 Reading: https://zbotic.in/uart-communication-baud-rate-tx-rx-and-how-it-works/

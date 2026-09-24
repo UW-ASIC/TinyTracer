@@ -24,6 +24,8 @@ This module selects a request from the I/O Unit or RTU request channel and respo
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `dout`  |     `DATA_WIDTH`      | Output data from SRAM |
+| `io_wr`  |     [`sram_wr_if.server`](../tinytracer_if.md#sram_wr_if)      | SRAM write request channel from the I/O Unit |
+| `rtu_rd`  |     [`sram_rd_if.server`](../tinytracer_if.md#sram_rd_if)      | SRAM read request and response channel from the RTU |
 
 ### Outputs
 
@@ -32,13 +34,6 @@ This module selects a request from the I/O Unit or RTU request channel and respo
 | `wen`  |     1      | SRAM write enable |
 | `addr`  |     `ADDR_WIDTH`      | SRAM address for reads/writes |
 | `din`  |     `DATA_WIDTH`      | SRAM input data |
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `sram_wr_if`  | SRAM write request channel from the I/O Unit |
-| `sram_rd_if`  | SRAM read request and response channel from the RTU |
 
 ## Architecture Overview
 

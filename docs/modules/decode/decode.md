@@ -27,6 +27,7 @@ This module decomposes complex macro-ops from the RTU into simple micro-ops that
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `rf_rdata`  |     `WLEN`      | Register file read port 1 data |
+| `macro`  |     [`macro_if.server`](../tinytracer_if.md#macro_if)      | Macro-op request and response channel from the RTU |
 
 ### Outputs
 
@@ -36,13 +37,7 @@ This module decomposes complex macro-ops from the RTU into simple micro-ops that
 | `rf_waddr`  |     3      | Register file write address |
 | `rf_wdata`  |     `WLEN`      | Register file write data |
 | `rf_raddr`  |     3      | Register file read port 1 address |
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `macro_if`  | Macro-op request and response channel from the RTU |
-| `micro_if`  | Micro-op request and response channel to FU Control |
+| `micro`  |     [`micro_if.client`](../tinytracer_if.md#micro_if)      | Micro-op request and response channel to FU Control |
 
 ## Architecture Overview
 
@@ -62,9 +57,8 @@ When a valid macro-op is detected, the FSM transitions to the `DECODE` state. In
 
 | `MACROOP`  |   `reg_init_cnt` |
 |:----:|:-------:|
-| `M_RNG`  | 0 | 
 | `M_SQRT`, `M_COS`, `M_RECP`  | 1 | 
-| `M_ADD`, `M_SUB`, `M_EQ`, `M_NE`, `M_LT`, `M_GE`, `M_MUL`, `M_DIV`  | 2 | 
+| `M_ADD`, `M_SUB`, `M_EQ`, `M_NE`, `M_LT`, `M_GE`, `M_MUL`, `M_DIV`, `M_MAG`  | 2 | 
 | `M_NORM`  | 3 | 
 | `M_SCAL_VEC`, `M_SPHERE_NORM`  | 4 | 
 | `M_VADD`, `M_VSUB`, `M_DOT`, `M_CROSS`  | 6 | 
@@ -80,9 +74,9 @@ In `DISPATCH`, the Decode Unit uses the `MACROOP` field to select the sequence o
 | `M_SCAL_VEC`  | 6 | 9 |
 | `M_DOT`  | 9 | 14 |
 | `M_CROSS`  | 14 | 23 |
-| `M_NORM`  | 23 | 33 |
-| `M_SPHERE_NORM`  | 33 | 36 |
-| Scalar  | 36 | 37 |
+| `M_NORM`  | 23 | 29 |
+| `M_SPHERE_NORM`  | 29 | 32 |
+| Scalar  | 32 | 33 |
 
  For example, a vector add macro-op (`M_VADD`) would read micro-ops beginning from address 0 up to address 3, which corresponds to the following micro-ops:
 
@@ -92,7 +86,7 @@ In `DISPATCH`, the Decode Unit uses the `MACROOP` field to select the sequence o
  
  The bits stored in rows 0-2 of the ROM would be `14'b00000000110000`, `14'b00010011000000`, and `14'b00100101010000`. Once `op_addr` is determined and a micro-op from ROM is read, `curr_addr` is set to `op_addr` and a micro-op request is sent to the `fu_control` module. The Decode Unit allows for pipelined execution of micro-ops, keeping track of in-flight micro-ops with a 4 bit `inflight` counter that increments for every issued micro-op and decrements each time the `done` signal is asserted back from the `fu_control` module. `inflight` is unchanged if a micro-op issues at the same time another micro-op completes. 
  
- To prevent read-after-write (RAW) and write-after-write (WAW) hazards, certain micro-ops in the ROM have their `barrier` bit set to indicate that all prior micro-ops must complete before the current micro-op can execute. This is similar to a fence instruction which enforces load/store instruction order in multiprocessors, but for arithmetic instructions instead. ROM entries 12, 13, 20, and 26-30 have their `barrier` bits set. For example, the first and second ADD instructions (entries 12 and 13) in a vector dot-product operation (`M_DOT`) have their `barrier` bits marked, since the first ADD depends on the previous three MULs and the second ADD depends on the first ADD. 
+ To prevent read-after-write (RAW) and write-after-write (WAW) hazards, certain micro-ops in the ROM have their `barrier` bit set to indicate that all prior micro-ops must complete before the current micro-op can execute. This is similar to a fence instruction which enforces load/store instruction order in multiprocessors, but for arithmetic instructions instead. ROM entries 12, 13, 20, and 24-26 have their `barrier` bits set. For example, the first and second ADD instructions (entries 12 and 13) in a vector dot-product operation (`M_DOT`) have their `barrier` bits marked, since the first ADD depends on the previous three MULs and the second ADD depends on the first ADD. 
  
  There are two possible actions the Decode Unit can take while in the `DISPATCH` state. The first possible action is issuing micro-ops, which occur when there are remaining micro-ops to execute (`curr_addr` != `op_addr_end`), a micro-op's `barrier` bit is clear or the pipeline is empty, and the `fu_control` module can accept a micro-op request. Issuing micro-ops results in `curr_addr` being incremented.
  
@@ -104,4 +98,4 @@ In `DISPATCH`, the Decode Unit uses the `MACROOP` field to select the sequence o
 
 ### Timing Behaviour
 
-It takes 2 cycles to transition from `IDLE` to `DECODE` to `INITIALIZE`. The number of cycles spent in the `INITIALIZE` state ranges from 1-6 cycles, since the macro-op operand count ranges from 0-6. Next, the time spent in the `DISPATCH` state ranges from 3-77 cycles (for `M_ADD` and `M_NORM` operations, assuming 16 cycle latency for the multiplier and CORDIC). The time spent in the following `LOAD` state ranges from 2-4 cycles, since the number of scalar results range from 1-3. Finally, `WRITEBACK` takes 1 cycle. Hence, the latency of executing a macro-op ranges from 9-90 cycles.
+It takes 2 cycles to transition from `IDLE` to `DECODE` to `INITIALIZE`. The number of cycles spent in the `INITIALIZE` state ranges from 1-6 cycles, since the macro-op operand count ranges from 1-6. Next, the time spent in the `DISPATCH` state ranges from 3-77 cycles (for `M_ADD` and `M_NORM` operations, assuming 16 cycle latency for the multiplier and CORDIC). The time spent in the following `LOAD` state ranges from 2-4 cycles, since the number of scalar results range from 1-3. Finally, `WRITEBACK` takes 1 cycle. Hence, the latency of executing a macro-op ranges from 9-90 cycles.

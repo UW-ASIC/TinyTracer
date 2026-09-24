@@ -17,7 +17,7 @@ UART link. Due to area limitations, TinyTracer renders scenes *serially*, comput
 
 TinyTracer consists of the following components:
 
-- **Functional Units (FUs)**: Includes ALU, Multiplier, CORDIC, and Random Number Generator (RNG).
+- **Functional Units (FUs)**: Includes ALU, Multiplier, and CORDIC.
 - **Ray Tracing Unit (RTU)**: Each step of the ray tracing algorithm, including ray generation, computing ray-object intersections, and colouring pixels, is executed by the RTU. The RTU sends scalar and vector instructions to the FUs to execute.
 - **Decode**: The Decode Unit decomposes more complex instructions from the RTU into simple "micro-operations" that the FUs can execute. 
 - **Register File**: The Register File is a small set of registers that is used by the FUs to write intermediate results to for more complex multi-step operations like vector dot products.

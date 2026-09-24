@@ -57,7 +57,7 @@ package tinytracer_pkg;
     M_SQRT        = 5'b01000,  // scalar square root
     M_COS         = 5'b01001,  // cosine
     M_RECP        = 5'b01010,  // reciprocal
-    M_RNG         = 5'b01011,  // random number generator
+    M_MAG         = 5'b01011,  // 2D vector magnitude
     M_VADD        = 5'b01100,  // vector addition
     M_VSUB        = 5'b01101,  // vector subtraction
     M_SCAL_VEC    = 5'b01110,  // scalar-vector multiplication
@@ -92,7 +92,7 @@ package tinytracer_pkg;
     U_SQRT = 4'b1000,  // scalar square root
     U_COS  = 4'b1001,  // cosine
     U_RECP = 4'b1010,  // reciprocal
-    U_RNG  = 4'b1011   // random number generator
+    U_MAG  = 4'b1011   // vector magnitude
   } micro_op_t;
 
   // Micro-op word: | RD | RS1 | RS2 | MICROOP |
@@ -105,15 +105,14 @@ package tinytracer_pkg;
 
   // Functional unit select
   // ADD/SUB/EQ/NE/LT/GE -> ALU, MUL -> multiplier,
-  // DIV/SQRT/COS/RECP -> CORDIC, RNG -> RNG
+  // DIV/SQRT/COS/RECP/MAG -> CORDIC
   typedef enum logic [1:0] {
     FU_ALU    = 2'b00,
     FU_MUL    = 2'b01,
-    FU_CORDIC = 2'b10,
-    FU_RNG    = 2'b11
+    FU_CORDIC = 2'b10
   } fu_sel_t;
 
-  // Functional opcodes (multiplier and RNG take no opcode). fu_if carries the
+  // Functional opcodes (the multiplier takes no opcode). fu_if carries the
   // opcode as a plain 3-bit field; each unit compares it against its own enum.
   typedef enum logic [2:0] {
     ALU_ADD = 3'b000,
@@ -128,7 +127,8 @@ package tinytracer_pkg;
     CORDIC_DIV  = 3'b000,
     CORDIC_SQRT = 3'b001,
     CORDIC_COS  = 3'b010,
-    CORDIC_RECP = 3'b011
+    CORDIC_RECP = 3'b011,
+    CORDIC_MAG  = 3'b100
   } cordic_op_t;
 
   //---------------------------- Scene encoding --------------------------------

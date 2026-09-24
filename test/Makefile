@@ -17,11 +17,11 @@ PROJECT_SOURCES += functional_units/alu.sv
 PROJECT_SOURCES += functional_units/cordic.sv
 PROJECT_SOURCES += functional_units/fu_control.sv
 PROJECT_SOURCES += functional_units/multiplier.sv
-PROJECT_SOURCES += functional_units/rng.sv
 PROJECT_SOURCES += io/io.sv
 PROJECT_SOURCES += io/uart.sv
 PROJECT_SOURCES += rtu/intersection_unit.sv
-PROJECT_SOURCES += rtu/ray_generator.sv
+PROJECT_SOURCES += rtu/ray_gen/ray_generator.sv
+PROJECT_SOURCES += rtu/ray_gen/rng.sv
 PROJECT_SOURCES += rtu/rtu.sv
 PROJECT_SOURCES += rtu/shader_core.sv
 

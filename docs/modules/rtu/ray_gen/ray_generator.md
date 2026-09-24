@@ -6,7 +6,7 @@ description: "Generates primary rays from the camera and secondary rays from hit
 
 ## Overview
 
-This module generates primary and secondary rays to check for ray-object intersection. Primary rays originate from the camera origin, while secondary rays originate from the surface of an object that has been hit by a previous ray.
+This module generates primary and secondary rays to check for ray-object intersection. Primary rays originate from the camera origin, while secondary rays originate from the surface of an object that has been hit by a previous ray. It instantiates the [`rng`](rng.md) submodule for random sampling.
 
 ## Parameters
 
@@ -35,11 +35,6 @@ This module generates primary and secondary rays to check for ray-object interse
 | `gen_ray_origin`  |     struct      | Origin of generated ray |
 | `gen_ray_dir`  |     struct      | Direction of generated ray |
 | `gen_ray_valid`  |     1      | Generated ray valid |
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `macro_if`  | Macro-op request and response channel to the Decode Unit |
+| `macro`  |     [`macro_if.client`](../../tinytracer_if.md#macro_if)      | Macro-op request and response channel to the Decode Unit |
 
 ## Architecture Overview

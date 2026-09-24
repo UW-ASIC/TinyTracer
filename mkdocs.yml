@@ -14,6 +14,7 @@ nav:
       - "UART Frame Encoding": encoding/uart_frame.md
   - TinyTracer:
       - "tt_um_tinytracer — Top-Level Module for TinyTracer": modules/tt_um_tinytracer.md
+      - "tinytracer_if — Interfaces between TinyTracer modules": modules/tinytracer_if.md
   - SRAM:
       - "sram_control — SRAM Controller": modules/sram/sram_control.md
   - I/O:
@@ -21,7 +22,8 @@ nav:
       - "uart — UART transceiver": modules/io/uart.md
   - RTU:
       - "rtu — Instantiates Ray Generator, Intersection Unit, and Shader Core": modules/rtu/rtu.md
-      - "ray_generator — Generates primary and secondary rays": modules/rtu/ray_generator.md
+      - "ray_generator — Generates primary and secondary rays": modules/rtu/ray_gen/ray_generator.md
+      - "rng — Random number generator": modules/rtu/ray_gen/rng.md
       - "intersection_unit — Computes ray-object intersection": modules/rtu/intersection_unit.md
       - "shader_core — Colours pixels based on ray-object intersection results and material metadata": modules/rtu/shader_core.md
   - FU:
@@ -29,7 +31,6 @@ nav:
       - "alu — Fixed-point ALU": modules/fu/alu.md
       - "cordic — CORDIC Unit": modules/fu/cordic.md
       - "multiplier — Fixed-point multiplier": modules/fu/multiplier.md
-      - "rng — Random number generator": modules/fu/rng.md
   - Decode:
       - "decode — Decodes messages between the RTU and FUs": modules/decode/decode.md
   - Register File:

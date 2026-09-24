@@ -31,11 +31,11 @@ This module uses the results of a ray-object intersection, the intersected objec
 | `ray_bounces_left`  |     `clog2(MAX_BOUNCES)`      | Ray bounces remaining |
 | `hit`  |     1      | Ray-object intersection flag |
 
-### Interfaces
+### Outputs
 
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `colour_if`  | Sample pixel colour stream to the Accumulator |
-| `macro_if`  | Macro-op request and response channel to the Decode Unit |
+| Name          |   Width    | Description                           |
+|---------------|:------------:|---------------------------------------|
+| `sample`  |     [`colour_if.src`](../tinytracer_if.md#colour_if)      | Sample pixel colour stream to the Accumulator |
+| `macro`  |     [`macro_if.client`](../tinytracer_if.md#macro_if)      | Macro-op request and response channel to the Decode Unit |
 
 ## Architecture Overview

@@ -28,11 +28,11 @@ project:
     - "functional_units/cordic.sv"
     - "functional_units/fu_control.sv"
     - "functional_units/multiplier.sv"
-    - "functional_units/rng.sv"
     - "io/io.sv"
     - "io/uart.sv"
     - "rtu/intersection_unit.sv"
-    - "rtu/ray_generator.sv"
+    - "rtu/ray_gen/ray_generator.sv"
+    - "rtu/ray_gen/rng.sv"
     - "rtu/rtu.sv"
     - "rtu/shader_core.sv"
 

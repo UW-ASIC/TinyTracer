@@ -4,6 +4,7 @@
 
 - [Introduction](introduction.md)
 - [`tt_um_tinytracer`](modules/tt_um_tinytracer.md): Top-Level Module for TinyTracer
+- [`tinytracer_if`](modules/tinytracer_if.md): Interfaces between TinyTracer modules
 
 ## Encodings
 
@@ -23,7 +24,8 @@
 ## RTU
 
 - [`rtu`](modules/rtu/rtu.md): Instantiates Ray Generator, Intersection Unit, and Shader Core
-- [`ray_generator`](modules/rtu/ray_generator.md): Generates primary and secondary rays
+- [`ray_generator`](modules/rtu/ray_gen/ray_generator.md): Generates primary and secondary rays
+- [`rng`](modules/rtu/ray_gen/rng.md): Random number generator
 - [`intersection_unit`](modules/rtu/intersection_unit.md): Computes ray-object intersection
 - [`shader_core`](modules/rtu/shader_core.md): Colours pixels based on ray-object intersection results and material metadata
 
@@ -33,7 +35,6 @@
 - [`alu`](modules/fu/alu.md): Fixed-point ALU
 - [`cordic`](modules/fu/cordic.md): CORDIC Unit
 - [`multiplier`](modules/fu/multiplier.md): Fixed-point multiplier
-- [`rng`](modules/fu/rng.md): Random number generator
 
 ## Decode
 

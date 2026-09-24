@@ -34,13 +34,7 @@ This module is a fixed-point CORDIC engine enabling support for division, cosine
 | `y_out` |     N       | $y_N$ value output |
 | `z_out` |     N       | $z_N$ value output |
 | `busy` |     1       | Output for when engine is busy |
-
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `fu_if`  | Micro-op request and response channel from FU Control |
+| `fu`  |     [`fu_if.server`](../tinytracer_if.md#fu_if)      | Micro-op request and response channel from FU Control |
 
 ## Architecture Overview
 
@@ -124,11 +118,9 @@ $$\begin{aligned} x_{i+1} &= x_i \\ y_{i+1} &= y_i - \sigma_i \cdot (x_i \cdot 2
 
 $$y_0' = y_0 \cdot 2^{-k}$$
 
-
 #### Post-Reversion
 
 Shift the accumulated quotient register $z_N$ left by $k$ bits to restore the original scaling factor:
-
 
 $$z_{\text{out}} = z_N \cdot 2^k$$
 
@@ -156,7 +148,6 @@ $$\begin{aligned}     \text{If } z_0 > \frac{\pi}{2}: & \quad z_0' = z_0 - \pi \
 #### Post-Reversion
 
 If a $\pm \pi$ angle shift was applied during pre-normalization, invert the final output signs:
-
 
 $$x_{\text{out}} = -x_N, \quad y_{\text{out}} = -y_N$$
 
@@ -188,7 +179,6 @@ $$\begin{aligned} x_{i+1} &= x_i + \sigma_i \cdot (y_i \cdot 2^{-i}) \\ y_{i+1} 
 
 $$x_0' = \vert{}x_0\vert{}, \quad y_0' = \vert{}y_0\vert{}$$
 
-
 #### Post-Reversion
 
 **None.** Magnitude is rotationally invariant ($\sqrt{(-x)^2 + (-y)^2} = \sqrt{x^2 + y^2}$).
@@ -196,7 +186,6 @@ $$x_0' = \vert{}x_0\vert{}, \quad y_0' = \vert{}y_0\vert{}$$
 #### Post-Scaling
 
 Multiply the final output $x_N$ by $1/A \approx 0.60725$ to remove the circular CORDIC gain:
-
 
 $$\text{Magnitude} = x_N \cdot \frac{1}{A}$$
 
@@ -218,7 +207,6 @@ To calculate $\sqrt{w}$, initialize $x_0 = w' + 0.25$, $y_0 = w' - 0.25$, and $z
 
 $$\begin{aligned} x_{i+1} &= x_i - \sigma_i \cdot (y_i \cdot 2^{-i_j}) \\ y_{i+1} &= y_i - \sigma_i \cdot (x_i \cdot 2^{-i_j}) \\ z_{i+1} &= z_i + \sigma_i \cdot \tanh^{-1}(2^{-i_j}) \end{aligned}$$
 
-
 *(Note: $z$ is technically calculated here but is unused for the final square root result).*
 
 #### Input Pre-Normalization
@@ -232,11 +220,9 @@ Initialize the $x$ and $y$ registers with the normalized $w'$:
 
 $$x_0 = w' + 0.25, \quad y_0 = w' - 0.25$$
 
-
 #### Post-Reversion
 
 Shift the output $x_N$ left by $k$ bits to account for the input pre-scaling ($\sqrt{w} = \sqrt{w' \cdot 2^{2k}} = \sqrt{w'} \cdot 2^k$):
-
 
 $$x_{\text{rev}} = x_N \cdot 2^k$$
 

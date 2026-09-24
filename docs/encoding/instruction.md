@@ -19,7 +19,7 @@ description: "Encoding of the macro-ops the RTU issues and the micro-ops the Dec
 * `M_SQRT = 5'b01000` (scalar square root)
 * `M_COS = 5'b01001` (cosine)
 * `M_RECP = 5'b01010` (reciprocal)
-* `M_RNG = 5'b01011` (random number generator)
+* `M_MAG = 5'b01011` (2D vector magnitude)
 * `M_VADD = 5'b01100` (vector addition)
 * `M_VSUB = 5'b01101` (vector subtraction)
 * `M_SCAL_VEC = 5'b01110` (scalar-vector multiplication)
@@ -61,7 +61,7 @@ $$
 * `U_SQRT = 4'b1000` (scalar square root)
 * `U_COS = 4'b1001` (cosine)
 * `U_RECP = 4'b1010` (reciprocal)
-* `U_RNG = 4'b1011` (random number generator)
+* `U_MAG = 4'b1011` (vector magnitude)
 
 ### Instructions
 
@@ -78,8 +78,7 @@ $$
 * Once a micro-op is received by `fu_control`, a functional unit is selected based on the `MICROOP` field
   * `ADD`, `SUB`, `EQ`, `NE`, `LT`, `GE` map to the ALU
   * `MUL` maps to the multiplier
-  * `DIV`, `SQRT`, `COS`, `RECP` map to CORDIC
-  * `RNG` maps to RNG
+  * `DIV`, `SQRT`, `COS`, `RECP`, `MAG` map to CORDIC
 * Micro opcodes are remapped to functional unit opcodes as shown below
 
 ### Functional Unit Opcodes
@@ -103,10 +102,7 @@ $$
 * `CORDIC_SQRT = 3'b001`
 * `CORDIC_COS = 3'b010`
 * `CORDIC_RECP = 3'b011`
-
-#### RNG
-
-* N/A, RNG has no opcode since it only generates random numbers
+* `CORDIC_MAG = 3'b100`
 
 # Macro to Micro Decomposition
 
@@ -230,16 +226,12 @@ Operation: $\vec{w} = \frac{\vec{u}}{|\vec{u}|}$
     * R1 $\leftarrow$ $u_2$
     * R2 $\leftarrow$ $u_3$
 * __Instructions__:
-    * MUL R3 $\leftarrow$ R0, R0 ($u_1$\*$u_1$)
-    * MUL R4 $\leftarrow$ R1, R1 ($u_2$\*$u_2$)
-    * MUL R5 $\leftarrow$ R2, R2 ($u_3$\*$u_3$)
-    * ADD R3 $\leftarrow$ R3, R4 ($u_1$\*$u_1$ + $u_2$\*$u_2$)
-    * ADD R3 $\leftarrow$ R3, R5 ($u_1$\*$u_1$ + $u_2$\*$u_2$ + $u_3$\*$u_3$)
-    * SQRT R3 $\leftarrow$ R3 ($\sqrt{u_1*u_1 + u_2*u_2 + u_3*u_3}$)
-    * RECP R3 $\leftarrow$ R3 ($1/\sqrt{u_1*u_1 + u_2*u_2 + u_3*u_3}$)
-    * MUL R0 $\leftarrow$ R3, R0 ($1/\sqrt{u_1*u_1 + u_2*u_2 + u_3*u_3}$ * $u_1$)
-    * MUL R1 $\leftarrow$ R3, R1 ($1/\sqrt{u_1*u_1 + u_2*u_2 + u_3*u_3}$ * $u_2$)
-    * MUL R2 $\leftarrow$ R3, R2 ($1/\sqrt{u_1*u_1 + u_2*u_2 + u_3*u_3}$ * $u_3$)
+    * MAG R3 $\leftarrow$ R0, R1 ($\sqrt{{u_1}^2+{u_2}^2}$)
+    * MAG R3 $\leftarrow$ R3, R2 ($\sqrt{{u_1}^2+{u_2}^2+{u_3}^2}$)
+    * RECP R3 $\leftarrow$ R3 ($1/\sqrt{{u_1}^2+{u_2}^2+{u_3}^2}$)
+    * MUL R0 $\leftarrow$ R3, R0 ($1/\sqrt{{u_1}^2+{u_2}^2+{u_3}^2}$ * $u_1$)
+    * MUL R1 $\leftarrow$ R3, R1 ($1/\sqrt{{u_1}^2+{u_2}^2+{u_3}^2}$ * $u_2$)
+    * MUL R2 $\leftarrow$ R3, R2 ($1/\sqrt{{u_1}^2+{u_2}^2+{u_3}^2}$ * $u_3$)
 * __Output Mapping__:
     * $w_1$ = R0
     * $w_2$ = R1

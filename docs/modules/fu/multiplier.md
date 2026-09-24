@@ -24,11 +24,6 @@ This module is a pipelined fixed-point multiplier using the TBD algorithm (repla
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
-
-### Interfaces
-
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `fu_if`  | Micro-op request and response channel from FU Control |
+| `fu`  |     [`fu_if.server`](../tinytracer_if.md#fu_if)      | Micro-op request and response channel from FU Control |
 
 ## Architecture Overview

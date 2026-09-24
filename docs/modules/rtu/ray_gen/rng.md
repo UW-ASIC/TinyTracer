@@ -6,7 +6,7 @@ description: "Xorshift LFSR random number generator."
 
 ## Overview
 
-This module is a Random Number Generator using a Galois linear feedback shift register (LFSR).
+This module is a Random Number Generator using a Galois linear feedback shift register (LFSR). It is a submodule of the [Ray Generator](ray_generator.md).
 
 ## Parameters
 
@@ -24,12 +24,13 @@ This module is a Random Number Generator using a Galois linear feedback shift re
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
+| `req`  |     1      | Shift the LFSR to produce a new random number |
 
-### Interfaces
+### Outputs
 
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| `fu_if`  | Micro-op request and response channel from FU Control |
+| Name          |   Width    | Description                           |
+|---------------|:------------:|---------------------------------------|
+| `rand_num`  |     `WLEN`      | Current LFSR state |
 
 ## Architecture Overview
 Computes a random number using a Galois LFSR
@@ -37,7 +38,7 @@ Computes a random number using a Galois LFSR
 `state <= state[msb] ? state_shifted ^ taps : state_shifted` is the core idea, where a tap is a link back from the MSB to another bit of the LFSR
 
 i.e:
-![SRAM Control Block](../../svg/galois.png)
+![SRAM Control Block](../../../svg/galois.png)
 
 Your taps should be a *Primitive Polynomial* in GF(2), which is used to ensure that the pseudorandom number that is generated is even distributed across the possible values (we are getting the maximum value out of all our LFSR bits).
 
@@ -52,7 +53,6 @@ As you will span the entire range of the LFSR, always reset the LFSR value to `'
 You should only have the LFSR shift when a random number is being requested, to save power in the chip.
 
 This module is always ready, and should shift whenever it is requested, to save power.
-The LFSR is moving in location, so this uArch page will be updated again.
 
 ## Math:
 
