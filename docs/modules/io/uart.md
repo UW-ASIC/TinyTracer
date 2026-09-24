@@ -42,6 +42,7 @@ If the start bit is not 0, discard the frame and go back to looking for a fallin
 Discard data also if the stop bit is not 1.
 
 This is a complete UART byte-frame:
+
 | IDLE | START | D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | STOP |
 |:----:|:-----:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:----:|
 | HIGH | LOW   |data|bit |by  |bit |(LSB|first)|cont..|...| HIGH |
