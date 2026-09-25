@@ -20,6 +20,7 @@
 
 - [`io`](modules/io/io.md): Communicates with external device to load scenes and render pixels
 - [`uart`](modules/io/uart.md): UART transceiver
+- [`clkdiv`](modules/io/clkdiv.md): Fractional Clock Divider
 
 ## RTU
 
