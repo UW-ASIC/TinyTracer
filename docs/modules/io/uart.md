@@ -1,12 +1,14 @@
 ---
-description: "UART transceiver that parses scene and render commands from the host and transmits pixel colour frames back."
+description: "UART transceiver that sends and receives bytes to communicate with the Host."
 ---
 
-# `uart` — UART frame parser
+# `uart` — UART transceiver
 
 ## Overview
 
-This module parses UART messages sent from the host device, processing input commands for scene initialization and rendering. The UART module also converts pixel colour data into UART frames to transmit back to the host.
+This module parses UART bytes sent from the host device, producing a stream of bytes to be processed. The UART module also sends bytes back to the host according to the UART frame semantics, used to return pixel data.
+
+This module only sends and receives bytes, processing of those bytes will be performed in the IO block.
 
 ## Ports
 
@@ -27,10 +29,10 @@ This module parses UART messages sent from the host device, processing input com
 
 ### Interfaces
 
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| [`stream_if.sink`](../tinytracer_if.md#stream_if)  | UART byte input from IO block |
-| [`stream_if.src`](../tinytracer_if.md#stream_if)  | UART byte output to IO block |
+|Name | Type          | Description                           |
+|-----|---------------|---------------------------------------|
+|`byte_in`| [`stream_if.sink`](../tinytracer_if.md#stream_if)  | UART byte input from IO block |
+|`byte_out`| [`stream_if.src`](../tinytracer_if.md#stream_if)  | UART byte output to IO block |
 
 ## Architecture Overview
 Reading: https://zbotic.in/uart-communication-baud-rate-tx-rx-and-how-it-works/
@@ -52,8 +54,13 @@ Transmitting is much more simple; frame bytes with start & stop, then shift the 
 The UART will have a CDC for the rx wire, as it is received from the IO pins.
 
 ### Backpressure
-If the UART's outgoing shift register is full, it should assert `uart_in.ready = 0`.
-Data should be loaded from `uart_in.data` into the shift register when both `uart_in.ready` && `uart_in.valid`.
-When the UART's incoming shift register is full, it should first move it to an intermediate holding register (which is `uart_out.data` or assigned to it), then assert `uart_out.valid`.
-Data should be rendered invalid after it is consumed (`uart_out.ready` && `uart_out.valid`).
-We assume our chip will be fast enough to not backpressure uart_out, but it is good practice to implement it.
+If the UART's outgoing shift register is full, it should assert `byte_in.ready = 0`.
+Data should be loaded from `byte_in.data` into the shift register when both `byte_in.ready` && `byte_in.valid`.
+When the UART's incoming shift register is full, it should first strip start/stop bits if the frame is valid and move it to an intermediate holding register (which is `byte_out.data` or assigned to it), then assert `byte_out.valid`.
+If the start/stop bits do not match, the byte should be discarded.
+Data should be rendered invalid after it is consumed (`byte_out.ready` && `byte_out.valid`).
+We assume our chip will be fast enough to not backpressure byte_out, but it is good practice to implement it.
+
+## UArch Diagram
+
+![IO Uarch Diagram](../../svg/uwasic_tt_io_uarch.svg)

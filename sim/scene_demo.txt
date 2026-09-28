@@ -1,0 +1,34 @@
+# TinyTracer demo scene. z is up. Colours are 0-255. Positions must stay within +-256.
+#   sphere x y z r               material R G B [strength] [bv]
+#   tri    x0 y0 z0  x1 y1 z1  x2 y2 z2  material R G B [strength] [bv]
+#   quad   4 corners in order    material R G B [strength] [bv]     (host makes 2 triangles)
+#   box    x0 y0 z0  x1 y1 z1    material R G B [strength] [bv]     (host makes 12 triangles)
+# materials: matte | mirror (perfect) | glass (spheres only, IOR 1.5) | glow (strength 0..15.99)
+#   strength is used by glow only; write 0 for the other materials when a bv number follows.
+# bv: which bounding volume (0..15) the object belongs to; the host builds the bounding volumes.
+# Fixed in the chip: ground at z = 0 (always on), 4 x 4 checker squares, 8 bounces, no far distance.
+# The host moves the scene so the camera is at x = 0, y = 0. Keep every object at z >= 0.
+
+image   512
+spp     32                          # 1, 2, 4, 8, 16 or 32
+camera  5 5 12   45 -12 90          # position x y z, yaw (deg from +x), pitch (deg), field of view (deg)
+sky     235 240 255  110 160 255    # horizon colour, top colour
+ground  205 205 200                 # checker colour A
+checker 120 120 130                 # checker colour B
+
+# bounding volume 0: front left
+sphere 32 22 6  6     matte   220 60 50     0    0
+sphere 22 34 4  4     mirror  235 235 235   0    0
+sphere 26 18 1.5 1.5  matte   250 250 250   0    0
+sphere 28 12 4  4     glass   250 250 250   0    0
+# bounding volume 1: right
+sphere 58 42 10 10    mirror  255 210 150   0    1
+sphere 48 24 3  3     matte   60 200 90     0    1
+quad   54 18 0.5  62 24 0.5  62 24 7  54 18 7   glow 255 170 80  8  1
+# bounding volume 2: box from 12 triangles
+box    30 52 0  40 62 10   matte 70 110 230   0  2
+# bounding volume 3: pyramid from 4 triangles
+tri 12 48 0  22 48 0  17 53 9   matte 230 200 90  0  3
+tri 22 48 0  22 58 0  17 53 9   matte 230 200 90  0  3
+tri 22 58 0  12 58 0  17 53 9   matte 230 200 90  0  3
+tri 12 58 0  12 48 0  17 53 9   matte 230 200 90  0  3

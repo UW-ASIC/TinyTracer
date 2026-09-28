@@ -44,11 +44,11 @@ This module also instantiates the Clock Divider that feeds the UART, and has con
 
 ### Interfaces
 
-| Type          | Description                           |
-|---------------|---------------------------------------|
-| [`colour_if.sink`](../tinytracer_if.md#colour_if)  | Pixel colour stream from the Accumulator |
-| [`render_if.src`](../tinytracer_if.md#render_if)  | Render strobe and image dimensions to the RTU |
-| [`sram_wr_if.client`](../tinytracer_if.md#sram_wr_if)  | SRAM write request channel |
+|Name        | Type          | Description                           |
+|------------|---------------|---------------------------------------|
+|`color_in`  | [`colour_if.sink`](../tinytracer_if.md#colour_if)  | Pixel colour stream from the Accumulator |
+|`render_out`| [`render_if.src`](../tinytracer_if.md#render_if)  | Render strobe and image dimensions to the RTU |
+|`sram_out`  | [`sram_wr_if.client`](../tinytracer_if.md#sram_wr_if)  | SRAM write request channel |
 
 ## Architecture Overview
 
@@ -63,3 +63,7 @@ To do so, we use the following meanings of `clkdiv_ctl`:
 | otherwise | do nothing |
 
 This does mean that we need a CDC for this data to prevent metastability glitches.
+
+## UArch Diagram
+
+![IO Uarch Diagram](../../svg/uwasic_tt_io_uarch.svg)
