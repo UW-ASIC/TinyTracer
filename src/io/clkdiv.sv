@@ -13,7 +13,7 @@ reg [7:0] sr;
 
 always @(posedge clk) begin
     if (!rst_n) begin
-        sr <= {7'b0}; 
+        sr <= {8'b0}; 
         q <= 0;
     end else if (sr[7]) begin
         sr <= sr + b;
