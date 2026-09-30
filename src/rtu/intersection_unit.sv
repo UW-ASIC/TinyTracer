@@ -111,27 +111,28 @@ module intersection_unit #(
                 S_RTU_LOAD: begin
                     sram_bv_done <= 1'b0;
                     if (bv_count != 5'd0) begin
-                        sram_addr    <= 9'd17; // BV Address = 17 + 5 * i + word
-                        sram_w_index <= 3'd0; // BV Address: w0-w4
+                        sram_addr    <= 9'd17; // 1st BV Address start at 17
+                        sram_w_index <= 3'd0; // BV Address reset to w0
                         sram_rd      <= 1'b1; // Override global sram_rd <= 1'b0 for 1-cycle
                         bv_index     <= 5'd0;
+                    end
                 end
 
                 S_SRAM_READ: begin
                     // Iterative SRAM Read
                     if (sram_valid) begin
-                        if (sram_w_index != 3'd5) begin
-                            sram_w_index <= sram_w_index + 3'd1; // BV Address: w0-w4
+                        if (sram_w_index != 3'd4) begin
+                            sram_w_index <= sram_w_index + 3'd1; // BV Address iterate through w0-w4
                             sram_rd      <= 1'b1; // Override global sram_rd <= 1'b0 for 1-cycle
-                            sram_addr    <= sram_addr + 9'd16; // BV Address = 17 + 5 * i + word
+                            sram_addr    <= sram_addr + 9'd16; // BV Address = 17 + 5 * i + word (16 bit)
                         end else begin
                             if (bv_index == (bv_count - 5'd1)) begin
                                 sram_bv_done <= 1'b1;
                             end else begin
                                 bv_index     <= bv_index + 5'd1;
-                                sram_w_index <= 3'd0; // BV Address: w0-w4
+                                sram_w_index <= 3'd0; // BV Address reset to w0
                                 sram_rd      <= 1'b1; // Override global sram_rd <= 1'b0 for 1-cycle
-                                sram_addr    <= sram_addr + 9'd16; // BV Address = 17 + 5 * i + word
+                                sram_addr    <= sram_addr + 9'd16; // BV Address = 17 + 5 * i + word (16 bit)
                             end
                         end
                     end
