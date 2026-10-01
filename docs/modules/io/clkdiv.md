@@ -38,11 +38,11 @@ Uses an 8-bit accumulator register
 
 ## Baud Rates
 
-The UART needs `q` at 16 $\times$ the baud rate, so with a 25 MHz `clk`, $16 \times \text{baud} = 25\text{ MHz} \times c / 2(b + c)$.
+The UART needs `q` at 16 $\times$ the baud rate, so with a 25 MHz `clk`, $16 \times \text{baud} = 25\text{ MHz} \times c / 2(c - b)$.
 
 | Baud rate | b | c | `q` | Actual baud rate | Error |
 |:----:|:----:|:----:|:----:|:----:|:----:|
-| 115,200 | 104 | 18 | 1.844 MHz | 115,266 | +0.06% |
-| 230,400 | 43 | 18 | 3.689 MHz | 230,533 | +0.06% |
+| 115,200 | 104 | -18 | 1.844 MHz | 115,266 | +0.06% |
+| 230,400 | 43 | -18 | 3.689 MHz | 230,533 | +0.06% |
 
-Since b $\ge$ c, the fastest setting is b = c, which gives `q` = 25 MHz / 4 = 6.25 MHz, or 390,625 baud. So 230,400 is the fastest standard baud rate, and 460,800 is out of reach. Which rate TinyTracer uses is still open. At 115,200 baud the UART slows a 512 $\times$ 512 render at 8 samples per pixel by about 21%, since many sky and ground pixels render faster than the 347 µs it takes to send a pixel; at 230,400 baud it slows it by about 3%, and at 32 samples per pixel it does not slow it at all.
+Since b $\ge$ -c, the fastest setting is b = -c, which gives `q` = 25 MHz / 4 = 6.25 MHz, or 390,625 baud. So 230,400 is the fastest standard baud rate, and 460,800 is out of reach. Which rate TinyTracer uses is still open. At 115,200 baud the UART slows a 512 $\times$ 512 render at 8 samples per pixel by about 21%, since many sky and ground pixels render faster than the 347 µs it takes to send a pixel; at 230,400 baud it slows it by about 3%, and at 32 samples per pixel it does not slow it at all.
