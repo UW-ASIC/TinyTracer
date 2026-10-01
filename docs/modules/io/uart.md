@@ -18,21 +18,21 @@ This module only sends and receives bytes, processing of those bytes will be per
 |---------------|:------------:|---------------------------------------|
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
-| `clk_q`  | 1  | Divided clock for UART transmission - is at 16x baud rate |
-| `uart_rx`  |     1      | UART serial input from the host device |
+| `clkq`  | 1  | Divided clock for UART transmission - is at 16x baud rate |
+| `TT_RX`  |     1      | UART serial input from the host device |
 
 ### Outputs
 
 | Name          |   Width    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `uart_tx`  |     1      | UART serial output to the host device |
+| `TT_TX`  |     1      | UART serial output to the host device |
 
 ### Interfaces
 
 |Name | Type          | Description                           |
 |-----|---------------|---------------------------------------|
-|`byte_in`| [`stream_if.sink`](../tinytracer_if.md#stream_if)  | UART byte input from IO block |
-|`byte_out`| [`stream_if.src`](../tinytracer_if.md#stream_if)  | UART byte output to IO block |
+|`tx`| [`stream_if.sink`](../tinytracer_if.md#stream_if)  | Bytes to transmit, from the IO block |
+|`rx`| [`stream_if.src`](../tinytracer_if.md#stream_if)  | Received bytes, to the IO block |
 
 ## Architecture Overview
 Reading: https://zbotic.in/uart-communication-baud-rate-tx-rx-and-how-it-works/
@@ -49,17 +49,17 @@ This is a complete UART byte-frame:
 |:----:|:-----:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:----:|
 | HIGH | LOW   |data|bit |by  |bit |(LSB|first)|cont..|...| HIGH |
 
-Transmitting is much more simple; frame bytes with start & stop, then shift the 10-bit stream out, on every 16th `clk_q` pulse.
+Transmitting is much more simple; frame bytes with start & stop, then shift the 10-bit stream out, on every 16th `clkq` pulse.
 
 The UART will have a CDC for the rx wire, as it is received from the IO pins.
 
 ### Backpressure
-If the UART's outgoing shift register is full, it should assert `byte_in.ready = 0`.
-Data should be loaded from `byte_in.data` into the shift register when both `byte_in.ready` && `byte_in.valid`.
-When the UART's incoming shift register is full, it should first strip start/stop bits if the frame is valid and move it to an intermediate holding register (which is `byte_out.data` or assigned to it), then assert `byte_out.valid`.
+If the UART's outgoing shift register is full, it should assert `tx.ready = 0`.
+Data should be loaded from `tx.data` into the shift register when both `tx.ready` && `tx.valid`.
+When the UART's incoming shift register is full, it should first strip start/stop bits if the frame is valid and move it to an intermediate holding register (which is `rx.data` or assigned to it), then assert `rx.valid`.
 If the start/stop bits do not match, the byte should be discarded.
-Data should be rendered invalid after it is consumed (`byte_out.ready` && `byte_out.valid`).
-We assume our chip will be fast enough to not backpressure byte_out, but it is good practice to implement it.
+Data should be rendered invalid after it is consumed (`rx.ready` && `rx.valid`).
+We assume our chip will be fast enough to not backpressure `rx`, but it is good practice to implement it.
 
 ## UArch Diagram
 

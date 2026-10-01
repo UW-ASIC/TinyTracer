@@ -1,7 +1,4 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
 module sram_control (
     input  logic                              clk,
@@ -15,9 +12,9 @@ module sram_control (
 
     // SRAM Control Signals
     output logic                              wen,
-    output logic [ADDR_WIDTH-1:0]             addr,
-    output logic [DATA_WIDTH-1:0]             din,
-    input  logic [DATA_WIDTH-1:0]             dout
+    output logic [tinytracer_pkg::ADDR_WIDTH-1:0]             addr,
+    output logic [tinytracer_pkg::DATA_WIDTH-1:0]             din,
+    input  logic [tinytracer_pkg::DATA_WIDTH-1:0]             dout
 );
 
 endmodule

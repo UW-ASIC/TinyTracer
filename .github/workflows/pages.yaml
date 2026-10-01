@@ -38,7 +38,7 @@ jobs:
 
       - name: Build site
         shell: bash
-        run: mkdocs build
+        run: mkdocs build --strict
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3

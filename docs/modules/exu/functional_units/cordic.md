@@ -1,5 +1,5 @@
 ---
-description: "Fixed-point CORDIC unit for division, square roots, reciprocals, and trigonometric functions."
+description: "Fixed-point CORDIC unit for division, square roots, vector magnitude, and cosine."
 ---
 
 # `cordic` — CORDIC Unit
@@ -14,8 +14,6 @@ This module is a fixed-point CORDIC engine enabling support for division, cosine
 |---------------|:------------:|---------------------------------------|
 | `WLEN`  |     16      | Word length              |
 | `ITER`  |     `WLEN`      | Number of CORDIC iterations             |
-| `Q_INT`       |     8      | Integer bits in fixed point format    |
-| `Q_FRAC`      |     8      | Fractional bits in fixed point format |
 
 ## Ports
 
@@ -26,20 +24,17 @@ This module is a fixed-point CORDIC engine enabling support for division, cosine
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `start` |     1       | Rising-edge triggered start input |
-| `x_in`  |     N       | $x_0$ operator input |
-| `y_in`  |     N       | $y_0$ operator input |
-| `z_in`  |     N       | $z_0$ operator input |
+| `a_in`  |     N       | $A$ operator input |
+| `b_in`  |     N       | $B$ operator input |
 | `opcode`|     2       | Operation to be performed (input) |
-| `x_out` |     N       | $x_N$ value output |
-| `y_out` |     N       | $y_N$ value output |
-| `z_out` |     N       | $z_N$ value output |
+| `ans` |     N       | value output |
 | `busy` |     1       | Output for when engine is busy |
 
 ### Interfaces
 
 | Type          | Description                           |
 |---------------|---------------------------------------|
-| [`fu_if.server`](../tinytracer_if.md#fu_if)  | Micro-op request and response channel from FU Control |
+| [`fu_if.server`](../../tinytracer_if.md#fu_if)  | Micro-op request and response channel from FU Control |
 
 ## Architecture Overview
 
@@ -57,6 +52,10 @@ The CORDIC engine is designed as a state machine with the following states:
     - Transitioned to after N cycles (or N + R for square root) of **LOOP**. The CORDIC loop has concluded, the values now need to be un-normalized (meaning: radix-point realigned) if normalization had occurred.
 - **POSTSCALE**
     - Transitioned to immediately after **REVERT**. Some CORDIC operations inadvertently apply a gain to the output. Multiply by the inverse of this gain to get the correct output. Since we are multiplying by a constant, we can avoid a multiplier and do it with just shifts and adds.
+
+Below is a state diagram of this FSM:
+
+![CORDIC Engine State Diagram](cordic_state_diagram.png)
 
 ## LUTs
 
@@ -110,6 +109,8 @@ These two LUTs will be included as a ROM internal to the CORDIC engine.
 
 ### Division (Linear Vectoring Mode)
 
+The following operation computes $A/B$.
+
 #### Iteration Equations
 
 For step $i$, the rotational direction is determined by $\sigma_i = \text{sign}(y_i)$:
@@ -136,6 +137,8 @@ $$z_{\text{out}} = z_N \cdot 2^k$$
 ---
 
 ### Cosine (Circular Rotation Mode)
+
+The following operation computes $A\cos{B}$.
 
 #### Iteration Equations
 
@@ -165,6 +168,8 @@ Initialize $x_0 = 1.0$ and multiply the final output $x_N$ by $1/A$.
 ---
 
 ### Vector Magnitude (Circular Vectoring Mode)
+
+The following operation computes the magnitude of a 2D vector $[A, B]$.
 
 > **Note on 3D Vectors:** This CORDIC core natively calculates 2D vector magnitude ($\sqrt{x^2 + y^2}$). To compute a 3D magnitude ($\sqrt{x^2 + y^2 + z_{\text{space}}^2}$), run the 2D operation twice sequentially:
 > 1. Pass $(x, y)$ to compute $M_1 = \sqrt{x^2 + y^2}$.
@@ -197,6 +202,8 @@ $$\text{Magnitude} = x_N \cdot \frac{1}{A}$$
 ---
 
 ### Square Root (Hyperbolic Vectoring Mode)
+
+The following operation computes $\sqrt{A}$ (B is ignored).
 
 #### Shift Index ($i$) Update Rule
 
@@ -239,6 +246,21 @@ Hyperbolic CORDIC introduces a specific hyperbolic gain factor $A_h \approx 0.82
 
 $$\sqrt{w} = x_{\text{rev}} \cdot \frac{1}{A_h}$$
 
+## Number Formats
+
+The CORDIC unit works on POS and DIR numbers (see [Number Formats](../../../encoding/number_format.md)). `req_fmt` only affects square root:
+
+| Operation | Operands | Result |
+|----|----|----|
+| Division | $A / B$, computed as $(A \ll 14) \div B$ | POS $\div$ POS $\rightarrow$ DIR, POS $\div$ DIR $\rightarrow$ POS, DIR $\div$ DIR $\rightarrow$ DIR |
+| Cosine | $A\cos B$, $B$ in radians (DIR), $\lvert B \rvert \le 1.743$ | same format as $A$ |
+| Vector Magnitude | $A$ and $B$ in the same format | same format |
+| Square Root | $A$ in POS (`req_fmt` = 0) or DIR (`req_fmt` = 1) | same format as $A$ |
+
+FU Control passes a micro-op's RS1 as $A$ and RS2 as $B$. With $A$ = 1.0, division gives a reciprocal and cosine gives a plain cosine.
+
+Results that do not fit in 16 bits clamp to `16'h7FFF` or `16'h8000`. The RTU relies on this: a ground distance that clamps to `16'h7FFF` means the ground is too far away to hit.
+
 ## Timing Overview
 
 Below is a table detailing the number of cycles required for each operation:
@@ -248,4 +270,6 @@ Below is a table detailing the number of cycles required for each operation:
 | **Cosine ($\cos$)** | 1 cycle | $N$ cycles | 1 cycle | 0 cycles | $N + 2$ cycles |
 | **Vector Magnitude** | 1 cycle | $N$ cycles | 0 cycles | 1 to 2 cycles | $N + 2$ to $N + 3$ cycles |
 | **Division** | 1 cycle | $N$ cycles | 0 cycles | 0 cycles | $N + 1$ cycles |
-| **Square Root** | 1 to 2 cycles | $N + R$ cycles | 1 cycle | 1 to 2 cycles | $N + R + 3$ to $N + R + 5$ cycles |
+| **Square Root** | 1 to 2 cycles | $N + 2$ cycles | 1 cycle | 1 to 2 cycles | $N + 2 + 3$ to $N + 2 + 5$ cycles |
+
+With $N$ = 16 iterations (and 2 repeated iterations for square root), the worst-case latencies are: division 17 cycles, cosine 18, vector magnitude 19, and square root 23. The unit takes one operation at a time.

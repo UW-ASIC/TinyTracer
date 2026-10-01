@@ -1,10 +1,7 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
 module cordic #(
-    parameter int ITER=WLEN
+    parameter int ITER=tinytracer_pkg::WLEN
 ) (
     input  logic        clk,
     input  logic        rst_n,

@@ -6,13 +6,13 @@ description: "SRAM controller that arbitrates between I/O Unit and RTU requests 
 
 ## Overview
 
-This module selects a request from the I/O Unit or RTU request channel and responds with the appropriate data. 
+This module selects a request from the I/O Unit or RTU request channel and responds with the appropriate data. The SRAM has 512 words of 16 bits and is wrapped by [`scene_sram`](scene_sram.md); see [Scene Encoding](../../encoding/scene.md) for what it holds.
 
 ## Parameters
 
 | Name          |   Default    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `ADDR_WIDTH`  |     8      | Width of SRAM addresses               |
+| `ADDR_WIDTH`  |     9      | Width of SRAM addresses               |
 | `DATA_WIDTH`  |     16     | Width of SRAM data words              |
 
 ## Ports
@@ -46,7 +46,7 @@ This module selects a request from the I/O Unit or RTU request channel and respo
 
 ### Truth Table
 
-| `io_wr_req.valid`  |   `rtu_rd_req.valid`  | `sel`  | `req_valid`
+| `io_wr.req_valid`  |   `rtu_rd.req_valid`  | `sel`  | `req_valid`
 |:----:|:-------:|:------:|:------:|
 | 0  | 0 | 0 | 0 |
 | 0  | 1 | 1 | 1 |
@@ -61,4 +61,4 @@ Since the flow of data on TinyTracer is completely sequential, there is guarante
 
 ### Timing Behaviour
 
-Once a valid read or write request is presented to the SRAM controller, it is forwarded to the SRAM one clock cycle later. After the request is forwarded to the SRAM, there is another cycle of latency before the SRAM services the request. Hence, read and write operations take 2 cycles to complete.
+Once a valid read or write request is presented to the SRAM controller, it is forwarded to the SRAM one clock cycle later. After the request is forwarded to the SRAM, there is another cycle of latency before the SRAM services the request. Hence, read and write operations take 2 cycles to complete. The controller accepts the next read address in the cycle a word comes back, so back-to-back reads take 2 cycles per word: reading the 17 header words at render start takes 34 cycles.

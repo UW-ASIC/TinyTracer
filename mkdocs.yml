@@ -4,11 +4,18 @@ site_url: https://uw-asic.github.io/TinyTracer/
 
 # Sidebar entries are written as "name — description". The override in
 # theme_overrides/nav.html renders the name in code font.
+# Not part of the design docs site: the Tiny Tapeout datasheet and the
+# docs build requirements.
+exclude_docs: |
+  info.md
+  requirements.txt
+
 nav:
   - Home: index.md
   - Introduction:
       - Introduction: introduction.md
   - Encoding:
+      - "Number Formats": encoding/number_format.md
       - "Scene Encoding": encoding/scene.md
       - "Instruction Encoding": encoding/instruction.md
       - "UART Frame Encoding": encoding/uart_frame.md
@@ -17,24 +24,25 @@ nav:
       - "tinytracer_if — Interfaces between TinyTracer modules": modules/tinytracer_if.md
   - SRAM:
       - "sram_control — SRAM Controller": modules/sram/sram_control.md
+      - "scene_sram — Scene SRAM": modules/sram/scene_sram.md
   - I/O:
       - "io — Communicates with external device to load scenes and render pixels": modules/io/io.md
       - "uart — UART transceiver": modules/io/uart.md
+      - "clkdiv — Derives a clock as an arbitrary fraction of clk": modules/io/clkdiv.md
   - RTU:
       - "rtu — Instantiates Ray Generator, Intersection Unit, and Shader Core": modules/rtu/rtu.md
       - "ray_generator — Generates primary and secondary rays": modules/rtu/ray_gen/ray_generator.md
       - "rng — Random number generator": modules/rtu/ray_gen/rng.md
       - "intersection_unit — Computes ray-object intersection": modules/rtu/intersection_unit.md
       - "shader_core — Colours pixels based on ray-object intersection results and material metadata": modules/rtu/shader_core.md
-  - FU:
-      - "fu_control — Instantiates functional units": modules/fu/fu_control.md
-      - "alu — Fixed-point ALU": modules/fu/alu.md
-      - "cordic — CORDIC Unit": modules/fu/cordic.md
-      - "multiplier — Fixed-point multiplier": modules/fu/multiplier.md
-  - Decode:
-      - "decode — Decodes messages between the RTU and FUs": modules/decode/decode.md
-  - Register File:
-      - "reg_file — Register file for the FUs": modules/reg_file/reg_file.md
+  - EXU:
+      - "exu — Instantiates Decode Unit, Register File, and Functional Units": modules/exu/exu.md
+      - "decode — Decodes messages between the RTU and FUs": modules/exu/decode.md
+      - "reg_file — Register file for the FUs": modules/exu/reg_file.md
+      - "fu_control — Instantiates functional units": modules/exu/functional_units/fu_control.md
+      - "alu — Fixed-point ALU": modules/exu/functional_units/alu.md
+      - "cordic — CORDIC Unit": modules/exu/functional_units/cordic.md
+      - "multiplier — Fixed-point multiplier": modules/exu/functional_units/multiplier.md
   - Accumulator:
       - "accumulator — Buffer between the RTU and I/O Unit": modules/accumulator/accumulator.md
 

@@ -1,23 +1,24 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
+// Reads and writes the RTU's shared header and ray state registers; the
+// signals for that and for operand source selects are not defined yet (see
+// docs/modules/rtu/rtu.md, Handshakes).
 module intersection_unit (
     input  logic                            clk,
     input  logic                            rst_n,
-    input  tinytracer_pkg::prim_type_t      prim_type,       // Primitive type
-    input  tinytracer_pkg::vec3_t           ray_origin,      // Incident ray origin
-    input  tinytracer_pkg::vec3_t           ray_dir,         // Incident ray direction
-    input  tinytracer_pkg::vec3_t           origin,          // Sphere/triangle origin
-    input  tinytracer_pkg::vec3_t           u,               // Triangle u vector
-    input  tinytracer_pkg::vec3_t           v,               // Triangle v vector
-    input  logic [WLEN-1:0]                 radius,          // Sphere radius
-    output tinytracer_pkg::vec3_t           collision_point, // Point of ray-object intersection
-    output logic                            hit,             // Object hit flag
-    
-    // RTU <-> Decode Interface
-    macro_if.client                         macro
+
+    // Controller <-> Intersection Unit Signals (start, done: one-cycle pulses)
+    input  logic                            start,           // Start signal from the Controller; mode valid with it
+    input  logic [1:0]                      mode,            // 0: search, 1: read the closest object, 2: hit point and normal
+    output logic                            done,            // Mode finished
+    output tinytracer_pkg::hit_kind_t       hit_kind,        // Search result, valid with done in mode 0
+    output tinytracer_pkg::mat_type_t       material,        // Closest object's material, valid with done in mode 1
+
+    // Intersection Unit <-> RTU Request Path Interface
+    rtu_req_if.client                       req,
+
+    // Intersection Unit <-> SRAM Interface (connected by the RTU while active)
+    sram_rd_if.client                       sram
 );
 
 endmodule

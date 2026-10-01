@@ -1,25 +1,32 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
+// Reads and writes the RTU's shared header and ray state registers; the
+// signals for that and for operand source selects are not defined yet (see
+// docs/modules/rtu/rtu.md, Handshakes).
 module ray_generator (
     input  logic                            clk,
     input  logic                            rst_n,
+
+    // Controller <-> Ray Generator Signals (start, done: one-cycle pulses)
+    input  logic                            start,           // Start signal from the Controller; mode valid with it
     input  logic                            mode,            // mode = 0 for primary ray generation, 1 otherwise
+    output logic                            done,            // New ray is in the ray state registers
 
-    // Secondary Ray Signals
-    input  tinytracer_pkg::vec3_t           collision_point, // Point of ray-object intersection
-    input  tinytracer_pkg::vec3_t           ray_dir,         // Incident ray direction
-    input  tinytracer_pkg::mat_type_t       mat_type,        // Type of material that was hit by ray
+    // LFSR state, the request path's LFSR operand source. The RNG advances in
+    // each cycle a request field is written from it.
+    output logic [tinytracer_pkg::WLEN-1:0]                 rand_num,
 
-    // Generated Ray Signals
-    output tinytracer_pkg::vec3_t           gen_ray_origin,  // Origin of generated ray
-    output tinytracer_pkg::vec3_t           gen_ray_dir,     // Direction of generated ray
-    output logic                            gen_ray_valid,   // Generated rays are valid unless they are from emissive material
-
-    // RTU <-> Decode Interface
-    macro_if.client                         macro
+    // Ray Generator <-> RTU Request Path Interface
+    rtu_req_if.client                       req
 );
+
+  logic rng_req;  // advance the LFSR by 16 steps at the end of the cycle
+
+  rng u_rng (
+      .clk      (clk),
+      .rst_n    (rst_n),
+      .req      (rng_req),
+      .rand_num (rand_num)
+  );
 
 endmodule

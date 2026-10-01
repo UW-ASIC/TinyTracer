@@ -1,17 +1,16 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
-module xorshift_rng #(
-    parameter [WLEN-1:0] SEED = 16'hACE1  // If word length ever changes from 16, use a different seed of length WLEN
+// Galois LFSR random number generator (see docs/modules/rtu/ray_gen/rng.md).
+module rng #(
+    parameter [tinytracer_pkg::WLEN-1:0] SEED = 16'h0001,  // Reset value; any nonzero value works
+    parameter [tinytracer_pkg::WLEN-1:0] TAPS = 16'h100B   // XOR tap locations
 ) (
     input  logic            clk,
     input  logic            rst_n,
 
     // Ray Generator <-> RNG Signals
     input  logic            req,       // Shift the LFSR to produce a new random number
-    output logic [WLEN-1:0] rand_num   // Current LFSR state
+    output logic [tinytracer_pkg::WLEN-1:0] rand_num   // Current LFSR state
 );
 
 endmodule

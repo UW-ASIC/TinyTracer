@@ -1,7 +1,4 @@
 `default_nettype wire
-/* verilator lint_off IMPORTSTAR */
-import tinytracer_pkg::*;
-/* verilator lint_on IMPORTSTAR */
 
 module io (
     input  logic        clk,
@@ -27,7 +24,7 @@ module io (
     //  Accumulator -> I/O Interface  //
     ////////////////////////////////////
 
-    colour_if.sink      pixel,    // pixel colour stream, from Accumulator
+    colour_if.sink      pixel,    // pixel colour stream (W = COLOUR_DEPTH), from Accumulator
 
     ///////////////////////////
     // I/O -> SRAM Interface //
@@ -50,6 +47,7 @@ module io (
     uart u_uart (
         .clk   (clk),
         .rst_n (rst_n),
+        .clkq  (clkq),
         .rx    (rx_bytes),
         .tx    (tx_bytes),
         .TT_RX (uart_rx),

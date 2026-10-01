@@ -8,33 +8,28 @@ from cocotb.triggers import ClockCycles
 
 @cocotb.test()
 async def test_project(dut):
+    """Smoke test: the wired-up top elaborates, resets, and runs.
+
+    The modules below the top are still stubs, so this only checks the pins
+    that the top drives itself. Add checks here as modules are implemented.
+    """
     dut._log.info("Start")
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, units="us")
+    # Set the clock period to 40 ns (25 MHz)
+    clock = Clock(dut.clk, 40, units="ns")
     cocotb.start_soon(clock.start())
 
-    # Reset
+    # Reset, with the UART receive line (ui_in[3]) idle high
     dut._log.info("Reset")
     dut.ena.value = 1
-    dut.ui_in.value = 0
+    dut.ui_in.value = 0b0000_1000
     dut.uio_in.value = 0
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 10)
     dut.rst_n.value = 1
 
-    dut._log.info("Test project behavior")
+    dut._log.info("Run")
+    await ClockCycles(dut.clk, 100)
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
-
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
-
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
-
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+    # The bidirectional pins are all inputs
+    assert dut.uio_oe.value == 0

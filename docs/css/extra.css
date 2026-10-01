@@ -38,3 +38,11 @@ a:visited code {
   border-top: 1px solid #e1e4e5;
   padding-top: 24px;
 }
+
+/* The theme keeps every table cell on one line and scrolls a wide table
+   sideways, which hides the end of long description cells off the right
+   edge. Let cells wrap instead so each table fits the page width. */
+.rst-content .wy-table-responsive table td,
+.rst-content .wy-table-responsive table th {
+  white-space: normal;
+}
