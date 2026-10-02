@@ -70,5 +70,14 @@ TOPLEVEL = tb
 # MODULE is the basename of the Python test file
 MODULE = test
 
+ifeq ($(MAKECMDGOALS),clean)
+# `make clean` must not need a simulator: the gate-level CI job runs it without
+# GATES=yes and with only Icarus installed, and cocotb's Verilator makefile
+# stops when verilator is missing.
+.PHONY: clean
+clean:
+	rm -rf sim_build results.xml tb.vcd tb.fst dump.vcd dump.fst
+else
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
+endif
