@@ -35,4 +35,4 @@ This module is the single-port SRAM that holds the scene: 512 words of 16 bits (
 ## Architecture Overview
 
 - __Simulation__: a behavioural model. At each rising clock edge, it writes `din` to `addr` if `wen` is high, and loads the word at `addr` into `dout`. A read of the address being written returns the old word
-- __Synthesis__ (`SYNTHESIS` defined, as Yosys does): the SRAM macro will be instantiated here. IHP's `RM_IHPSG13_1P_512x16` fits, but the CI flow still builds for sky130, which has no such macro. Until then, `dout` is tied to 0 so that the flow does not build the memory out of flip-flops
+- __Synthesis__ (`SYNTHESIS` defined, as Yosys does): the SRAM macro will be instantiated here. IHP's `RM_IHPSG13_1P_512x16_c2_bm_bist` fits, but it is not integrated into the flow yet. Until then, `dout` is tied to 0 so that the flow does not build the memory out of flip-flops
