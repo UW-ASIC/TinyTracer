@@ -44,6 +44,8 @@ This module is the single-port SRAM that holds the scene: 512 words of 16 bits (
 
 ### Physical integration
 
+The [IHP SRAM Macro Integration](ihp_sram_macro.md) page has the details, the sources, and what would change for a different macro size.
+
 - __Placement__: the macro sits in the bottom-left corner of the core with orientation FS. Its signal pins are on its bottom edge, so FS turns them up towards the logic. The tile's I/O pins are on the top edge
 - __Power__: the Tiny Tapeout SG13CMOS5L tile powers designs with Metal4 stripes only, and the macro blocks Metal2 to Metal4 over its footprint, so the PDN generator stops its stripes at the macro. The `Project.ExtendPowerStripes` step (`librelane_plugin_tinytracer_pdn.py`, running `odb_stripes.py` from [ihp-um-janestreet-prism](https://kdp1965.github.io/ihp-um-janestreet-prism/ihp_sram_macro.html)) redraws them through the macro on its Metal4 supply columns. `VDD!` and `VDDARRAY!` connect to `VPWR`, and `VSS!` to `VGND`
 - __Sign-off__:
