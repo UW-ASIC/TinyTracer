@@ -29,9 +29,9 @@ logic [(tinytracer_pkg::WLEN-1) : 0] regs [7 : 0];
 always_ff @(posedge clk) begin 
     if (!rst_n) begin 
         // Reset all registers to 0
-        for (integer i = 0; i < 8; i++) {
+        for (integer i = 0; i < 8; i++) begin
             regs[i] <= '0; 
-        }
+        end
     end else begin 
         if (load) begin 
             // R0-R2 <- load_u.{x,y,z}
