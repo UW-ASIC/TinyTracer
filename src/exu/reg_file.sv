@@ -35,14 +35,14 @@ always_ff @(posedge clk) begin
     end else begin 
         if (load) begin 
             // R0-R2 <- load_u.{x,y,z}
-            regs[0] <= load_u[0]; 
-            regs[1] <= load_u[1];
-            regs[2] <= load_u[2]; 
+            regs[0] <= load_u.x; 
+            regs[1] <= load_u.y;
+            regs[2] <= load_u.z; 
 
             // R3-R5 <- load_v.{x,y,z}
-            regs[3] <= load_v[0]; 
-            regs[4] <= load_v[1];
-            regs[5] <= load_v[2]; 
+            regs[3] <= load_v.x; 
+            regs[4] <= load_v.y;
+            regs[5] <= load_v.z; 
         end else if (wen) begin 
             regs[waddr] <= wdata; 
         end 
@@ -53,9 +53,9 @@ always_comb begin
     // Outputs 
     rdata1 = regs[raddr1]; 
     rdata2 = regs[raddr2]; 
-    result[0] = regs[0]; 
-    result[1] = regs[1]; 
-    result[2] = regs[2]; 
+    result.x = regs[0]; 
+    result.y = regs[1]; 
+    result.z = regs[2]; 
 end 
 
 endmodule
