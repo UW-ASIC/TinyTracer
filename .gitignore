@@ -13,3 +13,4 @@ site/
 tt/
 sim/tinytracer_sim
 sim/*.bmp
+.venv/

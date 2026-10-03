@@ -36,17 +36,18 @@ VERILOG_SOURCES += $(addprefix $(SRC_DIR)/,$(PROJECT_SOURCES))
 
 else
 
-# Gate level simulation: the flat netlist and the sky130 cell models simulate
-# with Icarus, which does not support the SystemVerilog interfaces used in RTL.
+# Gate level simulation: the flat netlist and the IHP sg13cmos5l cell models
+# simulate with Icarus, which does not support the SystemVerilog interfaces used in RTL.
 SIM             = icarus
 SIM_BUILD				= sim_build/gl
 COMPILE_ARGS    += -DGL_TEST
 COMPILE_ARGS    += -DFUNCTIONAL
-COMPILE_ARGS    += -DUSE_POWER_PINS
 COMPILE_ARGS    += -DSIM
-COMPILE_ARGS    += -DUNIT_DELAY=\#1
-VERILOG_SOURCES += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/primitives.v
-VERILOG_SOURCES += $(PDK_ROOT)/sky130A/libs.ref/sky130_fd_sc_hd/verilog/sky130_fd_sc_hd.v
+VERILOG_SOURCES += $(PDK_ROOT)/ihp-sg13cmos5l/libs.ref/sg13cmos5l_io/verilog/sg13cmos5l_io.v
+VERILOG_SOURCES += $(PDK_ROOT)/ihp-sg13cmos5l/libs.ref/sg13cmos5l_stdcell/verilog/sg13cmos5l_stdcell.v
+# The scene SRAM macro: FUNCTIONAL selects its behavioural model
+VERILOG_SOURCES += $(PDK_ROOT)/ihp-sg13cmos5l/libs.ref/sg13cmos5l_sram/verilog/RM_IHPSG13_1P_512x16_c2_bm_bist.v
+VERILOG_SOURCES += $(PDK_ROOT)/ihp-sg13cmos5l/libs.ref/sg13cmos5l_sram/verilog/RM_IHPSG13_1P_core_behavioral_bm_bist.v
 
 # this gets copied in by the GDS action workflow
 VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
@@ -69,5 +70,14 @@ TOPLEVEL = tb
 # MODULE is the basename of the Python test file
 MODULE = test
 
+ifeq ($(MAKECMDGOALS),clean)
+# `make clean` must not need a simulator: the gate-level CI job runs it without
+# GATES=yes and with only Icarus installed, and cocotb's Verilator makefile
+# stops when verilator is missing.
+.PHONY: clean
+clean:
+	rm -rf sim_build results.xml tb.vcd tb.fst dump.vcd dump.fst
+else
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
+endif
