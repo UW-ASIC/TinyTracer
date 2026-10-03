@@ -37,11 +37,5 @@ jobs:
       - name: GL test
         uses: TinyTapeout/tt-gds-action/gl_test@ihp-cmos5l
 
-  viewer:
-    needs: gds
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write # to deploy to Pages
-      id-token: write # to verify the deployment originates from an appropriate source
-    steps:
-      - uses: TinyTapeout/tt-gds-action/viewer@ihp-cmos5l
+  # The template's viewer job is left out on purpose: it deploys the 3D GDS
+  # viewer to GitHub Pages, which replaces the MkDocs site from pages.yaml.
