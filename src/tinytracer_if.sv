@@ -39,22 +39,30 @@ endinterface
 // RTU sub-block <-> RTU request path. The active sub-block writes fields of
 // the shared request register (req_we = {FMT, u3, u2, u1, v3, v2, v1,
 // MACROOP}, taking effect at the end of the cycle; macro.req_op shows this
-// cycle's writes) and sends it with req_valid. The RTU takes every response
-// at once and passes it on with resp_valid; resp_flag is resp_result.x[0].
-// Operand source selects, size shift, sign flip, and ray state write-back
-// controls are not defined yet. See docs/modules/rtu/rtu.md (Handshakes).
+// cycle's writes) and sends it with req_valid. The operand fields take their
+// values from req_u and req_v, through the resize pre-shift when req_resize is
+// high. The RTU takes every response at once and passes it on with
+// resp_valid; resp_flag is resp_result.x[0]. The Ray Generator drives req_u
+// and req_v; the Intersection Unit's and Shader Core's operand selects, the
+// size shift, and the sign flip are not defined yet. See
+// docs/modules/rtu/rtu.md (Handshakes).
 interface rtu_req_if;
   logic [7:0]                req_we;
   tinytracer_pkg::fmt_t      req_fmt;
+  tinytracer_pkg::vec3_t     req_u;
+  tinytracer_pkg::vec3_t     req_v;
+  logic                      req_resize;
   tinytracer_pkg::macro_op_t req_op;
   logic                      req_valid;
   logic                      req_ready;
   logic                      resp_valid;
   logic                      resp_flag;
   tinytracer_pkg::vec3_t     resp_result;
-  modport client (output req_we, output req_fmt, output req_op, output req_valid, input  req_ready,
+  modport client (output req_we, output req_fmt, output req_u, output req_v, output req_resize,
+                  output req_op, output req_valid, input  req_ready,
                   input  resp_valid, input  resp_flag, input  resp_result);
-  modport server (input  req_we, input  req_fmt, input  req_op, input  req_valid, output req_ready,
+  modport server (input  req_we, input  req_fmt, input  req_u, input  req_v, input  req_resize,
+                  input  req_op, input  req_valid, output req_ready,
                   output resp_valid, output resp_flag, output resp_result);
 endinterface
 

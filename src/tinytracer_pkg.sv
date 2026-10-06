@@ -8,6 +8,7 @@ package tinytracer_pkg;
   localparam int ADDR_WIDTH   = 9;           // SRAM address width (512 words)
   localparam int DATA_WIDTH   = 16;          // SRAM word width
   localparam int DIM_WIDTH    = 12;          // image width/height (two RENDER bytes each)
+  localparam int PIX_W        = 9;           // pixel x and y counters (images up to 512 x 512)
   localparam int MAX_SPP      = 32;          // largest samples per pixel (the header sets each render's)
   localparam int SPP_LOG2_W   = 3;           // log2(samples per pixel), 0..5, from header word 15
   localparam int COLOUR_DEPTH = 8;           // bits per pixel colour channel
@@ -180,6 +181,11 @@ package tinytracer_pkg;
     BLK_ISECT   = 2'b10,
     BLK_SHADER  = 2'b11
   } rtu_blk_t;
+
+  // Scratch registers, shared by the Intersection Unit (test values) and the
+  // Ray Generator (bounce values). Word i is scratch[i].
+  localparam int SCRATCH_WORDS = 7;
+  typedef logic [SCRATCH_WORDS-1:0][WLEN-1:0] scratch_t;
 
   //---------------------------- Memory map ------------------------------------
   // See docs/encoding/scene.md. The header is at address 0 and bounding volume

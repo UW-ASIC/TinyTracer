@@ -20,9 +20,11 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 | `SAMPLE_DEPTH`  |     12    | Bits per sample colour channel            |
 | `MAX_BOUNCES`  |     8      | Ray bounce limit |
 | `DIM_WIDTH`  |     12      | Width of the image width and height from the I/O Unit |
+| `PIX_W`  |     9      | Width of the pixel x and y counters |
 | `SPP_LOG2_W`  |     3      | Width of $\log_2$ of the samples per pixel |
 | `HDR_WORDS`  |     17      | Number of header words, at SRAM address 0 |
 | `MAX_BV`  |     16      | Largest number of bounding volumes |
+| `SCRATCH_WORDS`  |     7      | Number of scratch registers |
 
 ## Ports
 
@@ -50,7 +52,7 @@ This module uses a finite-state machine (FSM) to execute each step of the ray-tr
 
 ## Architecture Overview
 
-The RTU is made of the Controller (the RTU's own FSM), the [Ray Generator](ray_gen/ray_generator.md), the [Intersection Unit](intersection_unit.md), and the [Shader Core](shader_core.md), together with the header registers, the ray state registers, and the request path that they share. The Controller starts one sub-block at a time; the active sub-block sends its macro-ops through the request path and reads the SRAM. In `rtu.sv`, the sub-blocks connect to the request path through the `rtu_req_if` instances `rg_req`, `iu_req`, and `sh_req`, the Intersection Unit's SRAM port through the `sram_rd_if` instance `iu_sram`, and the Shader Core's `sample` port straight to the RTU's.
+The RTU is made of the Controller (the RTU's own FSM), the [Ray Generator](ray_gen/ray_generator.md), the [Intersection Unit](intersection_unit.md), and the [Shader Core](shader_core.md), together with the header registers, the ray state registers, and the request path that they share. The Controller starts one sub-block at a time; the active sub-block sends its macro-ops through the request path and reads the SRAM. In `rtu.sv`, the sub-blocks connect to the request path through the `rtu_req_if` instances `rg_req`, `iu_req`, and `sh_req`, the Intersection Unit's SRAM port through the `sram_rd_if` instance `iu_sram`, and the Shader Core's `sample` port straight to the RTU's. The Ray Generator also gets the registers it reads on input ports and writes $O$, $D$, and scratch words through its own write ports.
 
 ### Controller
 
@@ -71,7 +73,7 @@ One sample runs as follows. At its start, the Controller sets the attenuation to
 | 5 | If the bounce count is 8: Shader Core (3: bounce limit, black sample). Otherwise: Intersection Unit (2: hit point and surface normal) | Bounce limit: sample done. Otherwise 7 |
 | 6 | Shader Core (1: glow sample) | Sample done |
 | 7 | Shader Core (2: attenuation) | 8 |
-| 8 | Ray Generator (1: new direction, move the origin off the surface); the bounce count increments | 2 |
+| 8 | Ray Generator (`material` + 1: 1 matte or ground, 2 mirror, 3 glass; new direction, move the origin off the surface); the bounce count increments | 2 |
 
 The sky covers nothing hit, a ray that points up, and a ground that is too far away. When a sample is done, the Shader Core has handed it to the Accumulator, and the Controller starts the next sample at step 1, or, after $s$ samples, the next pixel.
 
@@ -94,7 +96,7 @@ The sky covers nothing hit, a ray that points up, and a ground that is too far a
 | $n$: surface normal | 3 $\times$ 16 (DIR) | Intersection Unit | Ray Generator |
 | best $t$, best address, hit kind (sky, ground, object) | 16, 9, 2 | Intersection Unit | Intersection Unit, Shader Core, Controller |
 | kept test values: sphere $\text{offset}_s$, $\text{half}_s$, $r_s$; flip bit; triangle $K$ | 5 $\times$ 16, 1, 5 | Intersection Unit (new best hit) | Intersection Unit (normal), Ray Generator (glass) |
-| material | 2 | Intersection Unit (mode 1; matte for the ground in mode 0) | Ray Generator, Controller |
+| material | 2 | Intersection Unit (mode 1; matte for the ground in mode 0) | Controller (next step, Ray Generator `mode`) |
 | closest object's colour, glow strength | 3 $\times$ 8, 14 | Intersection Unit (mode 1) | Shader Core |
 | scratch | 7 $\times$ 16 | Intersection Unit (test values), Ray Generator (matte bounce) | same |
 | BV address, BVs left, object address, objects left | 9, 5, 9, 7 | Intersection Unit | Intersection Unit (SRAM address) |
@@ -103,14 +105,16 @@ The sky covers nothing hit, a ray that points up, and a ground that is too far a
 
 The best hit keeps the values its test left behind, so the closest object's test never runs a second time (see [Intersection Unit](intersection_unit.md)).
 
+The RTU owns the header and ray state registers. The Ray Generator gets the ones it reads on input ports and writes $O$, $D$, and scratch words through write ports, which the RTU stores at the end of the cycle (see [Ray Generator](ray_gen/ray_generator.md#registers)). How the Intersection Unit and Shader Core read and write them is not defined yet.
+
 ### Request Path
 
 The active sub-block builds each macro-op in a shared request register, which drives `macro.req_op` (see [Handshakes](#request-path-handshake) for the signals):
 
 - __Request register__: 102 bits, split into 8 fields (`FMT`, $u_3$, $u_2$, $u_1$, $v_3$, $v_2$, $v_1$, `MACROOP`; see [Instruction Encoding](../../encoding/instruction.md)). Each field has its own write enable, so a field that the next macro-op does not change is not written. For example, the triangle test computes $\det = e_1 \cdot P$ and then $\alpha_{top} = \text{slid} \cdot P$, and only $\mathbf{\vec{u}}$ changes between the two
-- __Operand select__: each of the six 16-bit operand fields is loaded from one of six sources: the ray state registers, the header registers, the SRAM word being read, the last macro-op result, LFSR bits from the [RNG](ray_gen/rng.md), or a constant
-- __Size shifter__: shifts a field by the size shift $K$, or applies the resize pre-shift before `M_NORM`. A leading-one finder picks the shift. Both are wiring, 0 cycles (see [Number Formats](../../encoding/number_format.md#shifts-in-the-rtu-request-path))
-- __Sign flip__: XORs a field with a control bit, which negates it without an adder (for example, random signs in the matte bounce)
+- __Operands__: the Ray Generator builds the values of the six 16-bit operand fields itself and drives them on `req_u` and `req_v`; the RTU passes the active block's values on. For the Intersection Unit and Shader Core, each operand field is loaded from one of five sources: the ray state registers, the header registers, the SRAM word being read, the last macro-op result, or a constant
+- __Size shifter__: shifts a field by the size shift $K$, or applies the resize pre-shift to $\mathbf{\vec{u}}$ before `M_NORM` (`req_resize`). A leading-one finder picks the shift. Both are wiring, 0 cycles (see [Number Formats](../../encoding/number_format.md#shifts-in-the-rtu-request-path))
+- __Sign flip__: XORs a field with a control bit, which negates it without an adder (for example, $-O_z$ for the ground). The Ray Generator applies its random signs itself
 
 A macro-op result goes into the next request, into the ray state registers, or back to the active sub-block as a 1-bit compare flag. The sub-blocks check each flag as it arrives and stop a test at the first failed check.
 
@@ -127,6 +131,7 @@ Each sub-block has `start`, `mode`, and `done` signals to the Controller:
 - The Controller starts a sub-block with a one-cycle pulse on `start`, with `mode` valid in the same cycle. The sub-block registers `mode` at the end of that cycle and works from the next cycle. It ignores `start` while it is busy
 - The sub-block pulses `done` for one cycle in the cycle it finishes: the cycle of its last macro-op response, SRAM word, or sample transfer. Register writes it makes in that cycle take effect at the end of the cycle
 - Anything the Controller needs to pick the next step is an output of the sub-block, valid in the cycle of `done`: the Intersection Unit's `hit_kind` (mode 0) and `material` (mode 1)
+- Anything a sub-block needs to pick its own sequence of macro-ops comes in `mode`. For example, the Controller gives the Ray Generator the material of the surface it bounces off
 - The Controller can pulse the next sub-block's `start` in the same cycle as `done`, so the next sub-block can send its first macro-op in the following cycle
 
 #### Active Block
@@ -137,7 +142,7 @@ The Controller keeps an `active` register (`rtu_blk_t`: `BLK_CTRL` = 0, `BLK_RAY
 
 Each sub-block connects to the request path through [`rtu_req_if`](../tinytracer_if.md#rtu_req_if):
 
-- __Field writes__: in any cycle, the active block can write fields of the request register. `req_we` has one write enable per field, in the order `FMT`, $u_3$, $u_2$, $u_1$, $v_3$, $v_2$, $v_1$, `MACROOP`. `req_fmt` and `req_op` carry the values for `FMT` and `MACROOP`. The operand fields take their values from the operand select, size shifter, and sign flip, whose controls are not defined yet. Writes take effect at the end of the cycle
+- __Field writes__: in any cycle, the active block can write fields of the request register. `req_we` has one write enable per field, in the order `FMT`, $u_3$, $u_2$, $u_1$, $v_3$, $v_2$, $v_1$, `MACROOP`. `req_fmt` and `req_op` carry the values for `FMT` and `MACROOP`. The operand fields take their values from `req_u` and `req_v` (Ray Generator), through the resize pre-shift when `req_resize` is high, or from the operand select, size shifter, and sign flip (Intersection Unit and Shader Core), whose controls are not defined yet. Writes take effect at the end of the cycle
 - __Bypass__: `macro.req_op` is the request register with the current cycle's writes applied, so a block can write the last fields of a macro-op and send it in the same cycle
 - __Send__: the block raises `req_valid` to send the request register as a macro-op; `req_ready` is `macro.req_ready`. The macro-op is sent in the cycle both are high. While `req_valid` is high and `req_ready` is low, the block keeps its field writes the same. A block sends a macro-op only after the response to its previous one
 - __Response__: the RTU takes every response at once (`macro.resp_ready` is always 1) and passes it to the active block: `resp_valid` is high for one cycle, `resp_flag` is bit 0 of `resp_result.x` (the compare flag), and `resp_result` is the whole result. In that cycle the block can write fields of its next request from the result, and write the result into ray state registers
@@ -156,7 +161,7 @@ The Shader Core sends each sample to the Accumulator over `colour_if` and pulses
 
 #### Random Numbers
 
-The [RNG](ray_gen/rng.md)'s `rand_num` is valid in every cycle. The Ray Generator passes it to the request path as the LFSR operand source, and pulses the RNG's `req` in each cycle a field is written from it, so each random number is used once.
+The [RNG](ray_gen/rng.md) sits inside the Ray Generator, and its `rand_num` is valid in every cycle. The Ray Generator places its bits into the operand values it drives, and pulses the RNG's `req` in each cycle it writes a field from them, so each random number is used once.
 
 ### Cycles
 

@@ -13,7 +13,9 @@ This module generates primary and secondary rays to check for ray-object interse
 | Name          |   Default    | Description                           |
 |---------------|:------------:|---------------------------------------|
 | `WLEN`  |     16      | Word length              |
-| `MACRO_W`  |     102     | Macro operation width             |
+| `PIX_W`  |     9      | Width of the pixel x and y counters |
+| `DIM_WIDTH`  |     12      | Width of the image width from the I/O Unit |
+| `SCRATCH_WORDS`  |     7      | Number of scratch registers |
 
 ## Ports
 
@@ -24,29 +26,40 @@ This module generates primary and secondary rays to check for ray-object interse
 | `clk`  |     1      | Clock signal |
 | `rst_n`  |     1      | Active-low reset |
 | `start`  |     1      | Start signal from the Controller |
-| `mode`  |     1      | Selects primary (`mode` = 0) or secondary (`mode` = 1) ray generation |
+| `mode`  |     2      | 0: camera ray; 1: matte or ground bounce; 2: mirror bounce; 3: glass bounce. For a bounce, the Controller sets `mode` = `material` + 1 |
+| `ray_o`  |     `vec3_t`      | $O$: ray origin, or the hit point after a surface hit |
+| `ray_d`  |     `vec3_t`      | $D$: ray direction |
+| `ray_n`  |     `vec3_t`      | $n$: surface normal, facing the incoming ray |
+| `flip`  |     1      | Kept flip bit: the ray started inside the glass sphere |
+| `scratch`  |     `scratch_t`      | Scratch registers, `SCRATCH_WORDS` $\times$ `WLEN` |
+| `hdr_f`, `hdr_r`, `hdr_u`  |     `vec3_t`      | Camera vectors `F`, `R`, `U` (header registers) |
+| `cam_z`  |     `WLEN`      | `CAM_Z`, the camera height (header register) |
+| `pix_x`, `pix_y`  |     `PIX_W`      | Pixel being rendered (the Controller's counters) |
+| `img_w`  |     `DIM_WIDTH`      | Image width, from [`render_if`](../../tinytracer_if.md#render_if); sets where the jitter bits start |
 
 ### Outputs
 
 | Name          |   Width    | Description                           |
 |---------------|:------------:|---------------------------------------|
-| `done`  |     1      | One-cycle pulse: the new ray is in the ray state registers |
-| `rand_num`  |     `WLEN`      | LFSR state from the RNG, the request path's LFSR operand source |
+| `done`  |     1      | One-cycle pulse in the cycle the new ray is written; $O$ and $D$ hold it from the next cycle |
+| `o_we`  |     1      | Write `o_wdata` into $O$ |
+| `o_wdata`  |     `vec3_t`      | New value of $O$ |
+| `d_we`  |     1      | Write `d_wdata` into $D$ |
+| `d_wdata`  |     `vec3_t`      | New value of $D$ |
+| `scratch_we`  |     `SCRATCH_WORDS`      | Write `scratch_wdata` into each scratch word whose bit is high |
+| `scratch_wdata`  |     `WLEN`      | New value of the scratch words |
 
 ### Interfaces
 
 | Type          | Description                           |
 |---------------|---------------------------------------|
-| [`rtu_req_if.client`](../../tinytracer_if.md#rtu_req_if)  | Macro-op requests and responses through the RTU request path |
+| [`rtu_req_if.client`](../../tinytracer_if.md#rtu_req_if)  | Macro-op requests, with the operand values on `req_u` and `req_v`, and responses through the RTU request path |
 
 ### Registers
 
-The Ray Generator works on the RTU's shared registers (see [RTU](../rtu.md#ray-state-registers)) and sends its macro-ops through the RTU request path (see [Handshakes](../rtu.md#handshakes)). The signals it uses to select operand sources and to write registers are not defined yet. It pulses the RNG's `req` in each cycle a request field is written from `rand_num`.
+The RTU owns the shared header and ray state registers (see [RTU](../rtu.md#ray-state-registers)). The Ray Generator gets the ones it reads on its input ports and builds the values of its macro-op operands itself, from those registers, the last macro-op result (`req.resp_result`), LFSR bits, and constants. It drives them on `req.req_u` and `req.req_v` with the field write enables, and raises `req.req_resize` to resize $\mathbf{\vec{u}}$ before `M_NORM` (see [Handshakes](../rtu.md#handshakes)). It writes $O$, $D$, and scratch words through its write ports, only while it is active, and the RTU stores them at the end of the cycle.
 
-| Access | Registers |
-|----|----|
-| Reads | pixel x, y; `F`, `R`, `U`, `CAM_Z` (header registers); $O$ (hit point), $D$, $n$; material; flip bit (glass); LFSR bits |
-| Writes | $O$, $D$; scratch (matte bounce) |
+It pulses the RNG's `req` in each cycle it writes a request field from `rand_num`.
 
 ## Architecture Overview
 
@@ -71,17 +84,17 @@ $x - 256$ in two's complement is $x$ with bit 8 inverted, and $255 - y$ is $y$ w
 | $O$ = (0, 0, `CAM_Z`) | none | 0 |
 | Total | | 93 |
 
-To resize a vector to length 1, the RTU request path first shifts all three parts so that the largest is 0.5 to 1 as a DIR number (see [Number Formats](../../../encoding/number_format.md#resize-pre-shift)), then sends one `M_NORM` (65 cycles). `F` has length 1 and `R` and `U` at most 1, so $F + aR + bU$ is at most 1.73 long.
+To resize a vector to length 1, the Ray Generator writes it into $\mathbf{\vec{u}}$ with `req_resize` high. The RTU request path first shifts all three parts so that the largest is 0.5 to 1 as a DIR number (see [Number Formats](../../../encoding/number_format.md#resize-pre-shift)), then sends one `M_NORM` (65 cycles). `F` has length 1 and `R` and `U` at most 1, so $F + aR + bU$ is at most 1.73 long.
 
 ### Secondary Rays
 
-After a surface hit below the bounce limit, the Ray Generator picks the new direction from the material, using the hit point and surface normal $n$ that the Intersection Unit left in $O$ and $n$. $n$ always faces the incoming ray.
+After a surface hit below the bounce limit, the Ray Generator picks the new direction from the material, which the Controller gives it in `mode`, using the hit point and surface normal $n$ that the Intersection Unit left in $O$ and $n$. $n$ always faces the incoming ray.
 
-- __Matte and ground__: $D$ = resize($n + r$), where $r$ is a random unit vector. $n + r$ lies on a sphere of radius 1 resting on the surface, so $D$ always leaves the surface and favours directions near $n$. If $n + r$ = 0, the leading-one finder of the resize pre-shift finds no 1 bit, and $D = n$
+- __Matte and ground__: $D$ = resize($n + r$), where $r$ is a random unit vector. $n + r$ lies on a sphere of radius 1 resting on the surface, so $D$ always leaves the surface and favours directions near $n$. If $n + r$ = 0, the leading-one finder of the resize pre-shift would find no 1 bit, so the Ray Generator checks the `M_VADD` result and, if it is 0, writes $D = n$ instead of sending `M_NORM`
 - __Mirror__: $D - 2(D \cdot n)n$. No random part and no resize: the length stays 1
 - __Glass__ (spheres only, index of refraction 1.5): $\cos\theta = -(D \cdot n)$ and $k = 1 - \eta^2(1 - \cos^2\theta)$, where $\eta$ = 1/1.5 = 0.667 entering the sphere and 1.5 leaving it (the flip bit says the ray started inside). The ray reflects, $D + 2\cos\theta \, n$, if $k < 0$ (total internal reflection) or if 8 random bits are below $0.04 + 0.96(1 - \cos\theta)^5$ (Schlick's approximation). Otherwise it refracts: resize($\eta D + (\eta\cos\theta - \sqrt{k})\,n$)
 
-The random unit vector $r$ uses 18 random bits and no loop. $z$ is 8 random bits, sign-extended into a DIR number (-0.992 to 0.992; -128 is read as -127). $w$ is 8 random bits, 0 to 0.996, and the heading is $\varphi = w \times \pi/2$ (0 to 90°). Picking $z$ and $\varphi$ evenly gives every direction the same chance. Then $\rho = \sqrt{1 - z^2}$ and $r = (\pm\rho\cos\varphi, \pm\rho\sin\varphi, z)$. `M_COS` computes $u_1\cos(v_1)$, so it gives $\rho\cos\varphi$ and $\rho\sin\varphi = \rho\cos(\varphi - \pi/2)$ directly, with $u_1 = \rho$. The two signs come from 2 more random bits, applied by the sign flip in the request path, and $z$ is placed in the request by wiring. Both `M_COS` angles stay within the CORDIC range of $\pm$99.8°.
+The random unit vector $r$ uses 18 random bits and no loop. $z$ is 8 random bits, sign-extended into a DIR number (-0.992 to 0.992; -128 is read as -127). $w$ is 8 random bits, 0 to 0.996, and the heading is $\varphi = w \times \pi/2$ (0 to 90°). Picking $z$ and $\varphi$ evenly gives every direction the same chance. Then $\rho = \sqrt{1 - z^2}$ and $r = (\pm\rho\cos\varphi, \pm\rho\sin\varphi, z)$. `M_COS` computes $u_1\cos(v_1)$, so it gives $\rho\cos\varphi$ and $\rho\sin\varphi = \rho\cos(\varphi - \pi/2)$ directly, with $u_1 = \rho$. The two signs come from 2 more random bits, which the Ray Generator applies by XOR as it builds the operands, and it places $z$ in the request by wiring. Both `M_COS` angles stay within the CORDIC range of $\pm$99.8°.
 
 Every material then moves the new origin off the surface, $O$ = hit point + 0.031 $\times n$ (4 POS steps), so that rounding cannot make the new ray hit the same surface again at $t \approx 0$. A refracted glass ray moves into the glass instead, $O$ = hit point - 0.031 $\times n$.
 
