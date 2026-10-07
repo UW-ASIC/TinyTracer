@@ -30,9 +30,9 @@ logic [1:0] load_cycle;
 always_ff @(posedge clk) begin 
     if (!rst_n) begin 
         // Reset all registers to 0
-        for (integer i = 0; i < 8; i++) {
+        for (integer i = 0; i < 8; i++) begin
             regs[i] <= '0; 
-        }
+        end
         load_cycle <= '0;
     end else begin 
         if (load) begin 
@@ -66,9 +66,9 @@ always_comb begin
     // Outputs 
     rdata1 = regs[raddr1]; 
     rdata2 = regs[raddr2]; 
-    result[0] = regs[0]; 
-    result[1] = regs[1]; 
-    result[2] = regs[2]; 
+    result.x = regs[0]; 
+    result.y = regs[1]; 
+    result.z = regs[2]; 
 end 
 
 endmodule
