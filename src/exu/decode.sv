@@ -23,7 +23,6 @@ module decode (
         logic [5:0] end_addr;
     } rom_addr_t;
 
-
     // 3 states
     // DECODE -> DISPATCH -> WB
     localparam logic [1:0] STATE_DECODE = 2'b00;
@@ -33,7 +32,7 @@ module decode (
     logic [1:0] state;
     logic [1:0] next_state;
 
-    logic [5:0] curr_addr;
+    logic [5:0] curr_addr; // address for ROM
     logic [5:0] op_addr_end;
     logic [3:0] inflight; //4b counter
     logic barrier;
@@ -47,8 +46,8 @@ module decode (
 
     //from tinytracer_pkg:
     macro_op_t   macroop_reg; // 5b macro opcode
-    fmt_t        fmt_reg;
-    micro_word_t micro_op_word; // 13b micro op structure
+    tinytracer_pkg::fmt_t        fmt_reg;
+    tinytracer_pkg::micro_word_t micro_op_word; // 13b micro op structure
 
     // RESET LOGIC
 
@@ -98,9 +97,8 @@ module decode (
     // CTRL registers
     // macro_op FMT, curr addr, ROM end addr, inflight count
 
-    // ROM lookup
-    //
-    function automatic rom_range_t get_rom_range(
+    // ROM and ROM lookup
+    function automatic rom_addr_t get_rom_range(
         input tinytracer_pkg::macro_op_t op
     );
         case (op)
@@ -111,6 +109,40 @@ module decode (
                 get_rom_range = '{6'd0, 6'd0};
         endcase
     endfunction
+
+    always_comb begin
+        barrier = 1'b0;
+        micro_op_word = '0;
+
+        case (curr_addr)
+
+            // M_VADD
+            6'd0: begin
+                barrier =           1'b0;
+                micro_op_word.rd =  3'd0;
+                micro_op_word.rs1 = 3'd0;
+                micro_op_word.rs2 = 3'd3;
+            end
+
+            6'd1: begin
+                barrier =           1'b0;
+                micro_op_word.rd =  3'd1;
+                micro_op_word.rs1 = 3'd1;
+                micro_op_word.rs2 = 3'd4;
+            end
+
+            6'd2: begin
+                barrier =           1'b0;
+                micro_op_word.rd =  3'd2;
+                micro_op_word.rs1 = 3'd2;
+                micro_op_word.rs2 = 3'd5;
+            end
+
+            // Default case do nothing
+            default: begin
+            end
+        endcase
+    end
 
     // handshake logic
     // macro req, micro issue, micro complete, macro response
