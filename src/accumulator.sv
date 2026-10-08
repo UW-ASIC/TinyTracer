@@ -1,8 +1,6 @@
 `default_nettype wire
 
-module accumulator 
-import tinytracer_pkg::*;
-(
+module accumulator (
     input  logic        clk,
     input  logic        rst_n,
 
@@ -15,28 +13,28 @@ import tinytracer_pkg::*;
 );
 
 // definitions
-logic[SAMPLE_DEPTH+$clog2(MAX_SPP)-1:0] accumulator_r;
-logic[SAMPLE_DEPTH+$clog2(MAX_SPP)-1:0] accumulator_g;
-logic[SAMPLE_DEPTH+$clog2(MAX_SPP)-1:0] accumulator_b;
+logic[tinytracer_pkg::SAMPLE_DEPTH+$clog2(tinytracer_pkg::MAX_SPP)-1:0] accumulator_r;
+logic[tinytracer_pkg::SAMPLE_DEPTH+$clog2(tinytracer_pkg::MAX_SPP)-1:0] accumulator_g;
+logic[tinytracer_pkg::SAMPLE_DEPTH+$clog2(tinytracer_pkg::MAX_SPP)-1:0] accumulator_b;
 
-logic [$clog2(MAX_SPP):0]count;
+logic [$clog2(tinytracer_pkg::MAX_SPP):0]count;
 logic samples_done;
 assign samples_done = count[spp_log2];
 // _____________________________________________
 
 // combinational logic 
 
-logic [COLOUR_DEPTH-1:0] r_valid, g_valid, b_valid;
-logic [SAMPLE_DEPTH+$clog2(MAX_SPP)-1:0] r_shifted, g_shifted, b_shifted;
+logic [tinytracer_pkg::COLOUR_DEPTH-1:0] r_valid, g_valid, b_valid;
+logic [tinytracer_pkg::SAMPLE_DEPTH+$clog2(tinytracer_pkg::MAX_SPP)-1:0] r_shifted, g_shifted, b_shifted;
 
 always_comb begin 
     r_shifted = accumulator_r >> spp_log2;
     g_shifted = accumulator_g >> spp_log2;
     b_shifted = accumulator_b >> spp_log2;
 
-    r_valid = (r_shifted > 'd255) ? 8'd255 : r_shifted[COLOUR_DEPTH-1:0];
-    g_valid = (g_shifted > 'd255) ? 8'd255 : g_shifted[COLOUR_DEPTH-1:0];
-    b_valid = (b_shifted > 'd255) ? 8'd255 : b_shifted[COLOUR_DEPTH-1:0];
+    r_valid = (r_shifted > 'd255) ? 8'd255 : r_shifted[tinytracer_pkg::COLOUR_DEPTH-1:0];
+    g_valid = (g_shifted > 'd255) ? 8'd255 : g_shifted[tinytracer_pkg::COLOUR_DEPTH-1:0];
+    b_valid = (b_shifted > 'd255) ? 8'd255 : b_shifted[tinytracer_pkg::COLOUR_DEPTH-1:0];
     
     pixel.colour = {r_valid, g_valid, b_valid};
 end
@@ -79,9 +77,9 @@ end
 // start transmission
 else if(sample.valid && sample.ready) begin 
 
-    accumulator_r <= accumulator_r + sample.colour[3*SAMPLE_DEPTH-1:2*SAMPLE_DEPTH]; // r
-    accumulator_g <= accumulator_g + sample.colour[2*SAMPLE_DEPTH-1:SAMPLE_DEPTH]; // g
-    accumulator_b <= accumulator_b + sample.colour[SAMPLE_DEPTH-1:0]; // b
+    accumulator_r <= accumulator_r + sample.colour[3*tinytracer_pkg::SAMPLE_DEPTH-1:2*tinytracer_pkg::SAMPLE_DEPTH]; // r
+    accumulator_g <= accumulator_g + sample.colour[2*tinytracer_pkg::SAMPLE_DEPTH-1:tinytracer_pkg::SAMPLE_DEPTH]; // g
+    accumulator_b <= accumulator_b + sample.colour[tinytracer_pkg::SAMPLE_DEPTH-1:0]; // b
 
     count <= count + 1'b1;
 
