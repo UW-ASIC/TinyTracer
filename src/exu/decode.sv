@@ -23,6 +23,65 @@ module decode (
         logic [5:0] end_addr;
     } rom_addr_t;
 
+    typedef struct packed {
+        logic vector;
+        logic [5:0] start_addr;
+        logic [5:0] end_addr;
+    } macro_decode_t;
+
+    macro_decode_t macro_decode;
+
+    always @(*) begin 
+        macro_decode = '0;
+        case (macro.req_op)
+            tinytracer_pkg::M_VADD: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd0;
+                macro_decode.end_addr = 6'd3;
+            end
+            tinytracer_pkg::M_VSUB: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd3;
+                macro_decode.end_addr = 6'd6;
+            end
+            tinytracer_pkg::M_SCAL_VEC: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd6;
+                macro_decode.end_addr = 6'd9;
+            end
+            tinytracer_pkg::M_DOT: begin
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd9;
+                macro_decode.end_addr = 6'd14;
+            end
+            tinytracer_pkg::M_CROSS: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd14;
+                macro_decode.end_addr = 6'd23;
+            end
+            tinytracer_pkg::M_NORM: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd23;
+                macro_decode.end_addr = 6'd29;
+           end
+           tinytracer_pkg::M_SPHERE_NORM: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd29;
+                macro_decode.end_addr = 6'd32;
+           end
+           tinytracer_pkg::M_VMUL: begin 
+                macro_decode.vector = 1'b1;
+                macro_decode.start_addr = 6'd32;
+                macro_decode.end_addr = 6'd35;
+           end
+            default: begin 
+                macro_decode.vector = 1'b0;
+                macro_decode.start_addr = 6'd0;
+                macro_decode.end_addr = 6'd0;
+            end
+        endcase
+    end
+
     // 3 states
     // DECODE -> DISPATCH -> WB
     localparam logic [1:0] STATE_DECODE = 2'b00;
@@ -54,9 +113,20 @@ module decode (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= STATE_DECODE; // let decode be the reset state
+            macroop_reg <= '0;
+            fmt_reg <= '0;
+            vector_macro <= 1'b0;
+            curr_addr <= 6'd0;
+            op_addr_end <= 6'd0;
+            inflight <= 4'd0;
         end
         else begin
             state <= next_state;
+            macroop_reg <= macro.req_op;
+            fmt_reg <= macro.fmt_reg;
+            vector_macro <= macro_decode.vector;
+            curr_addr <= macro_decode.start_addr;
+            op_addr_end <= macro_decode.end_addr;
         end
     end
 
@@ -64,6 +134,13 @@ module decode (
 
     always @(*) begin
         next_state = state;
+
+        macro.req_ready = 1'b0; // ready to accept macrop only in decode
+        macro.resp_valid = 1'b0;
+        micro.req_ready = 1'b0;
+        micro.req_direct = 1'b0;
+        rf_load = 1'b0;
+
         case (state)
             STATE_DECODE: begin
                 // assert rf_load, set macro.req_ready =1
@@ -74,10 +151,18 @@ module decode (
                 // set next stateback to dispatch (if vector), writback (if scalar)
 
                 macro.req_ready = 1'b1;
+                macro_accept = macro.req_valid && macro.req_ready; // handshake complete - RTU send valid macro, DECODE accepted it
 
                 if (macro_accept) begin
-                    rf_load = 1'b1; // reg_file.sv for loading logic
+                    rf_load = 1'b1; // reg_file.sv for the loading logic
+                    next_state = STATE_DISPATCH; // we accepted macro op, move to next state
                 end
+
+                if (vector_macro) begin 
+
+                end
+
+                
 
 
 
