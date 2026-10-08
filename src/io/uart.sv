@@ -63,15 +63,37 @@ module uart (
 
     reg tx_state;
 
+    reg clkq_meta;
+    reg clkq_sync;
+    reg clkq_prev;
+
+    wire clkq_tick = clkq_sync && !clkq_prev;
+
 
 // ------------------------
+
+    // we are assuming clk >>> clkq, we want to have sync logic for clkq since the rest of the uart module relies on clk
+
+
+    always @(posedge clk) begin
+        if (!rst_n) begin
+            clkq_meta <= 1'b0;
+            clkq_sync <= 1'b0;
+            clkq_prev <= 1'b0;
+        end
+        else begin
+            clkq_meta <= clkq;
+            clkq_sync <= clkq_meta;
+            clkq_prev <= clkq_sync;
+        end
+    end
 
 
     // CDC
 
     // synchronize incoming signal to clkq before using
  
-    always @(posedge clkq) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             rx_meta <= 1'b1;
             rx_sync <= 1'b1;  // UART is idle high, so both registers must be reset to 1
@@ -89,7 +111,7 @@ module uart (
     // near the centre of each bit (6,8,10) out of 16 samples, we do a majority vote to reduce sensitivity to edge timing
 
 
-    always @(posedge clkq) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             rx_state     <= RX_IDLE;
             rx_ctr       <= 4'd0;
@@ -112,9 +134,9 @@ module uart (
             if (rx.valid && rx.ready) begin
                 rx.valid <= 1'b0;
             end
+            
 
              case (rx_state)
-
                 RX_IDLE: begin
                     rx_ctr <= 4'd0;
 
@@ -123,7 +145,10 @@ module uart (
                     end
                 end
 
+                
+
                 RX_START: begin
+                    if (clkq_tick) begin
         
                     if (rx_ctr == 4'd6)
                         rx_sample_6 <= rx_sync;
@@ -149,10 +174,12 @@ module uart (
                     else begin
                         rx_ctr <= rx_ctr + 1'b1;
                     end
+                    end
 
                 end
 
                 RX_DATA: begin
+                    if (clkq_tick) begin
                     if (rx_ctr == 4'd6)
                         rx_sample_6 <= rx_sync;
 
@@ -176,10 +203,13 @@ module uart (
                     end
                     else begin
                         rx_ctr <= rx_ctr + 1'b1;
-                    end                
+                    end  
+                    end              
                 end
 
                 RX_STOP: begin
+                    if (clkq_tick) begin
+
                     if (rx_ctr == 4'd6)
                         rx_sample_6 <= rx_sync;
 
@@ -206,7 +236,8 @@ module uart (
                     end
                     
                 end
-                // not required in final rtl, but recovers safely if state ever becomes invalid - same goes for the default case on TX
+                end
+                // not required in final rtl, but recovers safely if state ever becomes invalid - same goes for the default case on TX, if we do need to reduce cell ct we can here
                 default: begin
                     rx_state <= RX_IDLE;
                     rx_ctr     <= 4'd0;
@@ -220,14 +251,14 @@ module uart (
 
    
 
-    always @(posedge clkq) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
             tx_state     <= TX_IDLE;
             tx_ctr       <= 4'd0;
             tx_bit_ctr   <= 4'd0;
             tx_shift_reg <= 10'h3FF; // keeps UART TX reg at idle high when reset
         end
-        else begin
+        else begin  
             case (tx_state)
                 TX_IDLE: begin
                     tx_ctr     <= 4'd0;
@@ -244,6 +275,7 @@ module uart (
                 end
 
                 TX_SEND: begin
+                    if (clkq_tick) begin
 
                     // holding each bit for 16 cycles before shifting in the next bit since clkq is baud*16
                     if (tx_ctr == 4'd15) begin
@@ -261,6 +293,7 @@ module uart (
                     end
                     else begin
                         tx_ctr <= tx_ctr + 1'b1;
+                    end
                     end
                 end
                 default: begin
