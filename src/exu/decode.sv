@@ -96,6 +96,12 @@ module decode (
     logic [3:0] inflight; //4b counter
     logic barrier;
 
+    // Instantitate rom
+    micro_op_rom m_op_rom (
+        .addr (curr_addr),
+        .micro_op_word (micro_op_word),
+        .barrier (barrier)
+    );
     logic [5:0] rom_addr_start; // ROM addr start for macro op insn
     logic [5:0] rom_addr_end; // ROM addr end for macro op insn
 
@@ -158,14 +164,6 @@ module decode (
                     next_state = STATE_DISPATCH; // we accepted macro op, move to next state
                 end
 
-                if (vector_macro) begin 
-
-                end
-
-                
-
-
-
 
             end
             STATE_DISPATCH: begin
@@ -195,39 +193,6 @@ module decode (
         endcase
     endfunction
 
-    always_comb begin
-        barrier = 1'b0;
-        micro_op_word = '0;
-
-        case (curr_addr)
-
-            // M_VADD
-            6'd0: begin
-                barrier =           1'b0;
-                micro_op_word.rd =  3'd0;
-                micro_op_word.rs1 = 3'd0;
-                micro_op_word.rs2 = 3'd3;
-            end
-
-            6'd1: begin
-                barrier =           1'b0;
-                micro_op_word.rd =  3'd1;
-                micro_op_word.rs1 = 3'd1;
-                micro_op_word.rs2 = 3'd4;
-            end
-
-            6'd2: begin
-                barrier =           1'b0;
-                micro_op_word.rd =  3'd2;
-                micro_op_word.rs1 = 3'd2;
-                micro_op_word.rs2 = 3'd5;
-            end
-
-            // Default case do nothing
-            default: begin
-            end
-        endcase
-    end
 
     // handshake logic
     // macro req, micro issue, micro complete, macro response

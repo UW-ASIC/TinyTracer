@@ -13,6 +13,7 @@ PROJECT_SOURCES += accumulator.sv
 PROJECT_SOURCES += sram_control.sv
 PROJECT_SOURCES += scene_sram.sv
 PROJECT_SOURCES += exu/exu.sv
+PROJECT_SOURCES += exu/rom.sv
 PROJECT_SOURCES += exu/decode.sv
 PROJECT_SOURCES += exu/reg_file.sv
 PROJECT_SOURCES += exu/functional_units/alu.sv
