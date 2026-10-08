@@ -24,6 +24,7 @@ project:
     - "sram_control.sv"
     - "scene_sram.sv"
     - "exu/exu.sv"
+    - "exu/rom.sv"
     - "exu/decode.sv"
     - "exu/reg_file.sv"
     - "exu/functional_units/alu.sv"
