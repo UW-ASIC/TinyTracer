@@ -27,17 +27,19 @@ assign samples_done = count[spp_log2];
 // combinational logic 
 
 logic [COLOUR_DEPTH-1:0] r_valid, g_valid, b_valid;
-    // calculate averages etc, need to do it always
-    always_comb begin 
+logic [SAMPLE_DEPTH+$clog2(MAX_SPP)-1:0] r_shifted, g_shifted, b_shifted;
+
+always_comb begin 
+    r_shifted = accumulator_r >> spp_log2;
+    g_shifted = accumulator_g >> spp_log2;
+    b_shifted = accumulator_b >> spp_log2;
+
+    r_valid = (r_shifted > 'd255) ? 8'd255 : r_shifted[COLOUR_DEPTH-1:0];
+    g_valid = (g_shifted > 'd255) ? 8'd255 : g_shifted[COLOUR_DEPTH-1:0];
+    b_valid = (b_shifted > 'd255) ? 8'd255 : b_shifted[COLOUR_DEPTH-1:0];
     
-        r_valid = ((accumulator_r>>spp_log2) > 8'd255)? 8'd255: (accumulator_r>>spp_log2)[COLOUR_DEPTH-1:0] ;
-        g_valid = ((accumulator_g>>spp_log2) > 8'd255)? 8'd255: (accumulator_g>>spp_log2)[COLOUR_DEPTH-1:0] ;
-        b_valid = ((accumulator_b>>spp_log2) > 8'd255)? 8'd255: (accumulator_b>>spp_log2)[COLOUR_DEPTH-1:0] ;
-        pixel.colour = {r_valid, g_valid, b_valid};
-
-    end
-
-
+    pixel.colour = {r_valid, g_valid, b_valid};
+end
 // _____________________________________________
 always_ff @(posedge clk or negedge rst_n) begin
 
