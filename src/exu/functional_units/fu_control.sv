@@ -57,6 +57,9 @@ module fu_control (
   logic [2:0] mul_rd;
   logic [2:0] cordic_rd;
 
+  logic [15:0] data;
+  logic [2:0] address;
+
 
   assign rd = micro.req_op[12:10];
   assign rs1 = micro.req_op[9:7];
@@ -176,6 +179,36 @@ module fu_control (
       cordic_rd <= (fu_cordic.req_valid) ? rd : cordic_rd;
     end
 
+  end
+
+  always_comb begin 
+    rf_wen = 1'b0;
+    data = '0;
+    address = '0;
+
+    if (fu_alu.resp_done) begin 
+      data = fu_alu.resp_result;
+      address = alu_rd;
+
+      rf_wen = 1'b1;
+    end
+    else if (fu_mul.resp_done) begin
+      data = fu_mul.resp_result;
+      address = mul_rd;
+
+      rf_wen = 1'b1;
+    end
+    else if (fu_cordic.resp_done) begin
+      data = fu_cordic.resp_result;
+      address = cordic_rd;
+
+      rf_wen = 1'b1;
+    end
+
+    rf_waddr = address;
+    rf_wdata = data;
+
+    micro.resp_done = rf_wen;
   end
 
 
