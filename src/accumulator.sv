@@ -20,8 +20,6 @@ logic[tinytracer_pkg::SAMPLE_DEPTH+$clog2(tinytracer_pkg::MAX_SPP)-1:0] accumula
 logic [$clog2(tinytracer_pkg::MAX_SPP):0]count;
 // added to fix potential bug with missing samples
 wire [$clog2(tinytracer_pkg::MAX_SPP):0] next_count = count + 1'b1;
-logic samples_done;
-assign samples_done = count[spp_log2];
 // _____________________________________________
 
 // combinational logic 
@@ -65,17 +63,6 @@ else if(pixel.valid && pixel.ready) begin
     count <= '0;
 
 end
-// after accumulating s samples
-else if(samples_done) 
-begin
-        // final pixels calculated outside
-        // final pixels sent outside too
-        // setting conditions
-        pixel.valid <= 1'b1;
-        // waiting for downstream to accept. cut off samples
-        sample.ready <= 1'b0;
-
-end 
 // start transmission
 else if(sample.valid && sample.ready) begin 
 
@@ -84,8 +71,9 @@ else if(sample.valid && sample.ready) begin
     accumulator_b <= accumulator_b + sample.colour[tinytracer_pkg::SAMPLE_DEPTH-1:0]; // b
     // change made due to potential bug with missed samples
     count <= next_count;
-    if (next_count[spp_log2]) begin
+    if (next_count[spp_log2]) begin // after accumulating s samples
     sample.ready <= 1'b0;
+    pixel.valid <= 1'b1;
     end
 
 
