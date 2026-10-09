@@ -41,13 +41,16 @@ module fu_control (
       .fu   (fu_cordic)
   );
 
-  logic [2:0] rd;
-  logic [2:0] rs1;
-  logic [2:0] rs2;
-  tinytracer_pkg::micro_op_t op;
+  tinytracer_pkg::micro_word_t micro_req_op;
+  assign micro_req_op = micro.req_op;
 
-  logic [15:0] operand1;
-  logic [15:0] operand2;
+  //logic [2:0] rd;
+  //logic [2:0] rs1;
+  //logic [2:0] rs2;
+  //tinytracer_pkg::micro_op_t op;
+
+  logic [tinytracer_pkg::WLEN-1:0] operand1;
+  logic [tinytracer_pkg::WLEN-1:0] operand2;
 
   tinytracer_pkg::fu_sel_t unit_sel;
   logic [2:0] fu_opcode;
@@ -57,17 +60,17 @@ module fu_control (
   logic [2:0] mul_rd;
   logic [2:0] cordic_rd;
 
-  logic [15:0] data;
+  logic [tinytracer_pkg::WLEN-1:0] data;
   logic [2:0] address;
 
 
-  assign rd = micro.req_op[12:10];
-  assign rs1 = micro.req_op[9:7];
-  assign rs2 = micro.req_op[6:4];
-  assign op = micro.req_op[3:0];
+  //assign rd = micro.req_op[12:10];
+  //assign rs1 = micro.req_op[9:7];
+  //assign rs2 = micro.req_op[6:4];
+  //assign op = micro.req_op[3:0];
 
-  assign rf_raddr1 = rs1;
-  assign rf_raddr2 = rs2;
+  assign rf_raddr1 = micro_req_op.rs1;
+  assign rf_raddr2 = micro_req_op.rs2;
 
   assign operand1 = (micro.req_direct) ? micro.req_u1 : rf_rdata1;
   assign operand2 = (micro.req_direct) ? micro.req_v1 : rf_rdata2;
@@ -76,7 +79,7 @@ module fu_control (
     unit_sel  = tinytracer_pkg::FU_ALU;
     fu_opcode = '0;
 
-    case (op)
+    case (micro_req_op.op)
       tinytracer_pkg::U_MUL: begin
         unit_sel = tinytracer_pkg::FU_MUL;
       end
@@ -174,13 +177,14 @@ module fu_control (
       mul_rd <= '0;
       cordic_rd <= '0;
     end else begin
-      alu_rd <= (fu_alu.req_valid) ? rd : alu_rd;
-      mul_rd <= (fu_mul.req_valid) ? rd : mul_rd;
-      cordic_rd <= (fu_cordic.req_valid) ? rd : cordic_rd;
+      alu_rd <= (fu_alu.req_valid) ? micro_req_op.rd : alu_rd;
+      mul_rd <= (fu_mul.req_valid) ? micro_req_op.rd : mul_rd;
+      cordic_rd <= (fu_cordic.req_valid) ? micro_req_op.rd : cordic_rd;
     end
 
   end
 
+  // ONE UNIT DONE PER CYCLE **********
   always_comb begin 
     rf_wen = 1'b0;
     data = '0;
