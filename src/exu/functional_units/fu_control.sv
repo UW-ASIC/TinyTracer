@@ -53,6 +53,10 @@ module fu_control (
   logic [2:0] fu_opcode;
   logic accept;
 
+  logic [2:0] alu_rd;
+  logic [2:0] mul_rd;
+  logic [2:0] cordic_rd;
+
 
   assign rd = micro.req_op[12:10];
   assign rs1 = micro.req_op[9:7];
@@ -163,9 +167,13 @@ module fu_control (
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-
+      alu_rd <= '0;
+      mul_rd <= '0;
+      cordic_rd <= '0;
     end else begin
-
+      alu_rd <= (fu_alu.req_valid) ? rd : alu_rd;
+      mul_rd <= (fu_mul.req_valid) ? rd : mul_rd;
+      cordic_rd <= (fu_cordic.req_valid) ? rd : cordic_rd;
     end
 
   end
