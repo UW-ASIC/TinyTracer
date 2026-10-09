@@ -44,11 +44,6 @@ module fu_control (
   tinytracer_pkg::micro_word_t micro_req_op;
   assign micro_req_op = micro.req_op;
 
-  //logic [2:0] rd;
-  //logic [2:0] rs1;
-  //logic [2:0] rs2;
-  //tinytracer_pkg::micro_op_t op;
-
   logic [tinytracer_pkg::WLEN-1:0] operand1;
   logic [tinytracer_pkg::WLEN-1:0] operand2;
 
@@ -62,12 +57,6 @@ module fu_control (
 
   logic [tinytracer_pkg::WLEN-1:0] data;
   logic [2:0] address;
-
-
-  //assign rd = micro.req_op[12:10];
-  //assign rs1 = micro.req_op[9:7];
-  //assign rs2 = micro.req_op[6:4];
-  //assign op = micro.req_op[3:0];
 
   assign rf_raddr1 = micro_req_op.rs1;
   assign rf_raddr2 = micro_req_op.rs2;
