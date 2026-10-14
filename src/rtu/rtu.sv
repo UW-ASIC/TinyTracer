@@ -21,7 +21,7 @@ module rtu (
   // Controller <-> sub-block handshakes: start and done are one-cycle pulses,
   // mode is valid with start (see docs/modules/rtu/rtu.md, Handshakes)
   logic                      rg_start;
-  logic                      rg_mode;
+  logic [1:0]                rg_mode;
   logic                      rg_done;
   logic                      iu_start;
   logic [1:0]                iu_mode;
@@ -35,8 +35,30 @@ module rtu (
   // Block that owns the request path and the SRAM read port
   tinytracer_pkg::rtu_blk_t  active;
 
-  // LFSR state from the Ray Generator's RNG, a request path operand source
-  logic [tinytracer_pkg::WLEN-1:0]           rand_num;
+  // Header and ray state registers that the Ray Generator reads (see
+  // docs/modules/rtu/rtu.md, Ray State Registers)
+  tinytracer_pkg::vec3_t     ray_o;
+  tinytracer_pkg::vec3_t     ray_d;
+  tinytracer_pkg::vec3_t     ray_n;
+  logic                      flip;
+  tinytracer_pkg::scratch_t  scratch;
+  tinytracer_pkg::vec3_t     hdr_f;
+  tinytracer_pkg::vec3_t     hdr_r;
+  tinytracer_pkg::vec3_t     hdr_u;
+  logic [tinytracer_pkg::WLEN-1:0]      cam_z;
+  logic [tinytracer_pkg::PIX_W-1:0]     pix_x;
+  logic [tinytracer_pkg::PIX_W-1:0]     pix_y;
+  logic [tinytracer_pkg::DIM_WIDTH-1:0] img_w;
+
+  assign img_w = render.img_w;
+
+  // Ray Generator writes to O, D, and the scratch registers
+  logic                      rg_o_we;
+  tinytracer_pkg::vec3_t     rg_o_wdata;
+  logic                      rg_d_we;
+  tinytracer_pkg::vec3_t     rg_d_wdata;
+  logic [tinytracer_pkg::SCRATCH_WORDS-1:0] rg_scratch_we;
+  logic [tinytracer_pkg::WLEN-1:0]          rg_scratch_wdata;
 
   // Sub-block <-> request path
   rtu_req_if rg_req ();
@@ -47,13 +69,30 @@ module rtu (
   sram_rd_if iu_sram ();
 
   ray_generator u_ray_generator (
-      .clk      (clk),
-      .rst_n    (rst_n),
-      .start    (rg_start),
-      .mode     (rg_mode),
-      .done     (rg_done),
-      .rand_num (rand_num),
-      .req      (rg_req)
+      .clk           (clk),
+      .rst_n         (rst_n),
+      .start         (rg_start),
+      .mode          (rg_mode),
+      .done          (rg_done),
+      .ray_o         (ray_o),
+      .ray_d         (ray_d),
+      .ray_n         (ray_n),
+      .flip          (flip),
+      .scratch       (scratch),
+      .hdr_f         (hdr_f),
+      .hdr_r         (hdr_r),
+      .hdr_u         (hdr_u),
+      .cam_z         (cam_z),
+      .pix_x         (pix_x),
+      .pix_y         (pix_y),
+      .img_w         (img_w),
+      .o_we          (rg_o_we),
+      .o_wdata       (rg_o_wdata),
+      .d_we          (rg_d_we),
+      .d_wdata       (rg_d_wdata),
+      .scratch_we    (rg_scratch_we),
+      .scratch_wdata (rg_scratch_wdata),
+      .req           (rg_req)
   );
 
   intersection_unit u_intersection_unit (

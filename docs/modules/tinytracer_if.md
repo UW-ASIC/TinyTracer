@@ -86,7 +86,7 @@ RTU to Execution Unit channel. The RTU sends a macro-op request from its request
 
 ## `rtu_req_if`
 
-RTU sub-block to RTU request path channel. The active sub-block writes fields of the RTU's shared request register and sends it to the EXU as a macro-op, and the RTU returns the response to it. See [Handshakes](rtu/rtu.md#handshakes) for the timing. The controls that select operand sources, apply the size shift and sign flip, and write results into the ray state registers are not defined yet.
+RTU sub-block to RTU request path channel. The active sub-block writes fields of the RTU's shared request register and sends it to the EXU as a macro-op, and the RTU returns the response to it. See [Handshakes](rtu/rtu.md#handshakes) for the timing. The Ray Generator drives the operand values on `req_u` and `req_v`. The Intersection Unit's and Shader Core's operand selects, and the size shift and sign flip controls, are not defined yet.
 
 ### Signals
 
@@ -94,6 +94,9 @@ RTU sub-block to RTU request path channel. The active sub-block writes fields of
 |---------------|:------------:|:------------:|---------------------------------------|
 | `req_we`  |     8      | output | Request register field write enables, `{FMT, u3, u2, u1, v3, v2, v1, MACROOP}` |
 | `req_fmt`  |     `fmt_t`      | output | Value written to `FMT` when `req_we[7]` is high |
+| `req_u`  |     `vec3_t`      | output | Values written to $u_3$, $u_2$, $u_1$ (`z`, `y`, `x`) when `req_we[6:4]` are high |
+| `req_v`  |     `vec3_t`      | output | Values written to $v_3$, $v_2$, $v_1$ (`z`, `y`, `x`) when `req_we[3:1]` are high |
+| `req_resize`  |     1      | output | Apply the resize pre-shift to `req_u` before it is written (see [Number Formats](../encoding/number_format.md#resize-pre-shift)) |
 | `req_op`  |     `macro_op_t`      | output | Value written to `MACROOP` when `req_we[0]` is high |
 | `req_valid`  |     1      | output | Send the request register (with this cycle's writes) as a macro-op |
 | `req_ready`  |     1      | input | The EXU can accept a macro-op (`macro.req_ready`) |
