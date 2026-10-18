@@ -37,8 +37,6 @@ module uart (
         (rx_sample_6 & rx_sample_10) |
         (rx_sample_8 & rx_sample_10);
 
-  
-   
     reg [7:0] rx_shift_reg;
 
     // TX timing
@@ -50,7 +48,6 @@ module uart (
     assign TT_TX = (tx_state == TX_IDLE) ? 1'b1 : tx_shift_reg[0]; 
     assign tx.ready = (tx_state == TX_IDLE);
 
-  
     localparam RX_IDLE  = 2'd0;  //  waiting for the RX line to go low
     localparam RX_START = 2'd1;  //  sampling the possible start bit at 6, 8, and 10
     localparam RX_DATA  = 2'd2;  //  receiving d0 through d7
@@ -63,36 +60,32 @@ module uart (
 
     reg tx_state;
 
-    reg clkq_meta;
-    reg clkq_sync;
     reg clkq_prev;
 
-    wire clkq_tick = clkq_sync && !clkq_prev;
+    wire clkq_tick = clkq && !clkq_prev;
 
 
-// ------------------------
+    // ------------------------
 
-    // we are assuming clk >>> clkq, we want to have sync logic for clkq since the rest of the uart module relies on clk
+    // we are assuming clk >>> clkq
+    
 
 
     always @(posedge clk) begin
         if (!rst_n) begin
-            clkq_meta <= 1'b0;
-            clkq_sync <= 1'b0;
             clkq_prev <= 1'b0;
         end
         else begin
-            clkq_meta <= clkq;
-            clkq_sync <= clkq_meta;
-            clkq_prev <= clkq_sync;
+            clkq_prev <= clkq;
         end
     end
 
 
     // CDC
 
-    // synchronize incoming signal to clkq before using
- 
+    // synchronize async uart rx input to the clk domain
+    // no need to sync clkq
+
     always @(posedge clk) begin
         if (!rst_n) begin
             rx_meta <= 1'b1;
@@ -134,9 +127,9 @@ module uart (
             if (rx.valid && rx.ready) begin
                 rx.valid <= 1'b0;
             end
-            
 
-             case (rx_state)
+            case (rx_state)
+
                 RX_IDLE: begin
                     rx_ctr <= 4'd0;
 
@@ -145,97 +138,84 @@ module uart (
                     end
                 end
 
-                
-
                 RX_START: begin
                     if (clkq_tick) begin
-        
-                    if (rx_ctr == 4'd6)
-                        rx_sample_6 <= rx_sync;
 
-                    if (rx_ctr == 4'd8)
-                        rx_sample_8 <= rx_sync;
+                        case(rx_ctr)
+                            4'd6: rx_sample_6 <= rx_sync;
+                            4'd8: rx_sample_8 <= rx_sync;
+                            4'd10: rx_sample_10 <= rx_sync;
+                        endcase
 
-                    if (rx_ctr == 4'd10)
-                        rx_sample_10 <= rx_sync;
-
-                    if (rx_ctr == 4'd15) begin
-                        rx_ctr <= 4'd0;
-
-                        if (!rx_majority) begin
-                            rx_state <= RX_DATA; // majority 0 is a valid start
-                            rx_bit_ctr <= 3'd0;
-                        end 
-                        else begin
-                            rx_state <= RX_IDLE; // majority 1 is an invalid start
+                        if (rx_ctr == 4'd15) begin
+                            rx_ctr <= 4'd0;
+                        
+                            if (!rx_majority) begin
+                                rx_state <= RX_DATA; // majority 0 is a valid start
+                                rx_bit_ctr <= 3'd0;
+                            end 
+                            else begin
+                                rx_state <= RX_IDLE; // majority 1 is an invalid start
+                            end
                         end
-
+                        else begin
+                            rx_ctr <= rx_ctr + 1'b1;
+                        end
                     end
-                    else begin
-                        rx_ctr <= rx_ctr + 1'b1;
-                    end
-                    end
-
                 end
 
                 RX_DATA: begin
                     if (clkq_tick) begin
-                    if (rx_ctr == 4'd6)
-                        rx_sample_6 <= rx_sync;
+                        
+                        case (rx_ctr)
+                            4'd6: rx_sample_6 <= rx_sync;
+                            4'd8: rx_sample_8 <= rx_sync;
+                            4'd10: rx_sample_10 <= rx_sync;
+                        endcase
 
-                    if (rx_ctr == 4'd8)
-                        rx_sample_8 <= rx_sync;
-
-                    if (rx_ctr == 4'd10)
-                        rx_sample_10 <= rx_sync;
-
-                    if (rx_ctr == 4'd15) begin
-                        rx_ctr <= 4'd0;
-                    // shift majority voted data bit into shift reg
-                        rx_shift_reg <= {rx_majority, rx_shift_reg[7:1]}; // we shift in our new bit to the shift register
-                        if (rx_bit_ctr == 3'd7) begin
-                            rx_state <= RX_STOP;
+                        if (rx_ctr == 4'd15) begin
+                            rx_ctr <= 4'd0;
+                        // shift majority voted data bit into shift reg
+                            rx_shift_reg <= {rx_majority, rx_shift_reg[7:1]}; // we shift in our new bit to the shift register
+                            if (rx_bit_ctr == 3'd7) begin
+                                rx_state <= RX_STOP;
+                            end
+                            else begin
+                                rx_bit_ctr <= rx_bit_ctr + 1'b1;
+                            end
                         end
                         else begin
-                            rx_bit_ctr <= rx_bit_ctr + 1'b1;
-                        end
-
-                    end
-                    else begin
-                        rx_ctr <= rx_ctr + 1'b1;
-                    end  
+                            rx_ctr <= rx_ctr + 1'b1;
+                        end  
                     end              
                 end
 
                 RX_STOP: begin
                     if (clkq_tick) begin
 
-                    if (rx_ctr == 4'd6)
-                        rx_sample_6 <= rx_sync;
+                        case(rx_ctr)
+                            4'd6: rx_sample_6 <= rx_sync;
+                            4'd8: rx_sample_8 <= rx_sync;
+                            4'd10: rx_sample_10 <= rx_sync;
+                        endcase
 
-                    if (rx_ctr == 4'd8)
-                        rx_sample_8 <= rx_sync;
+                        if (rx_ctr == 4'd15) begin
+                            rx_ctr <= 4'd0;
 
-                    if (rx_ctr == 4'd10)
-                        rx_sample_10 <= rx_sync;
+                            // stop bit must be high, otherwise we discard the frame if it has invalid stop
+                            if (rx_majority) begin
+                                rx.data  <= rx_shift_reg;
+                                rx.valid <= 1'b1; // we hold this as valid until downstream interface acknowledges with rx.ready that the byte is recieved
+                            end
 
-                    if (rx_ctr == 4'd15) begin
-                        rx_ctr <= 4'd0;
+                            rx_state <= RX_IDLE;
 
-                        // stop bit must be high, otherwise we discard the frame if it has invalid stop
-                        if (rx_majority) begin
-                            rx.data  <= rx_shift_reg;
-                            rx.valid <= 1'b1; // we hold this as valid until downstream interface acknowledges with rx.ready that the byte is recieved
                         end
-
-                        rx_state <= RX_IDLE;
-
-                    end
-                    else begin
-                        rx_ctr <= rx_ctr + 1'b1;
-                    end
+                        else begin
+                            rx_ctr <= rx_ctr + 1'b1;
+                        end
                     
-                end
+                    end
                 end
                 // not required in final rtl, but recovers safely if state ever becomes invalid - same goes for the default case on TX, if we do need to reduce cell ct we can here
                 default: begin
@@ -243,13 +223,10 @@ module uart (
                     rx_ctr     <= 4'd0;
                     rx_bit_ctr <= 3'd0;
                 end
-
             endcase
         end
     end
 
-
-   
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -264,8 +241,6 @@ module uart (
                     tx_ctr     <= 4'd0;
                     tx_bit_ctr <= 4'd0;
                     
-                    
-
                     if (tx.valid && tx.ready) begin
 
                         // loading in the shift register as STOP, D7-D0, START) so that bit 0 is always the one we transmit as we shift the register
@@ -276,24 +251,24 @@ module uart (
 
                 TX_SEND: begin
                     if (clkq_tick) begin
+                        
+                        // holding each bit for 16 cycles before shifting in the next bit since clkq is baud*16
+                        if (tx_ctr == 4'd15) begin
+                            tx_ctr <= 4'd0;
 
-                    // holding each bit for 16 cycles before shifting in the next bit since clkq is baud*16
-                    if (tx_ctr == 4'd15) begin
-                        tx_ctr <= 4'd0;
+                            tx_shift_reg <= {1'b1, tx_shift_reg[9:1]};
 
-                        tx_shift_reg <= {1'b1, tx_shift_reg[9:1]};
-
-                        if (tx_bit_ctr == 4'd9) begin
-                            tx_state   <= TX_IDLE;
-                            tx_bit_ctr <= 4'd0;
+                            if (tx_bit_ctr == 4'd9) begin
+                                tx_state   <= TX_IDLE;
+                                tx_bit_ctr <= 4'd0;
+                            end
+                            else begin 
+                                tx_bit_ctr <= tx_bit_ctr + 1'b1;
+                            end
                         end
-                        else begin 
-                            tx_bit_ctr <= tx_bit_ctr + 1'b1;
+                        else begin
+                            tx_ctr <= tx_ctr + 1'b1;
                         end
-                    end
-                    else begin
-                        tx_ctr <= tx_ctr + 1'b1;
-                    end
                     end
                 end
                 default: begin
@@ -301,7 +276,6 @@ module uart (
                     tx_ctr <= 4'd0;
                     tx_bit_ctr <= 4'd0;
                 end
-
             endcase
         end
     end
