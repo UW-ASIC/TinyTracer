@@ -31,7 +31,7 @@ module decode (
 
     always @(*) begin // for DECODE & DISPATCH
         macro_decode = '0;
-        case (macro.req_op.op) // check only the opcode of macro.req_op
+        case (macro.req_op.op) 
             tinytracer_pkg::M_VADD: begin 
                 macro_decode.vector = 1'b1;
                 macro_decode.start_addr = 6'd0;
@@ -94,6 +94,11 @@ module decode (
     logic [3:0] inflight; //4b counter
     logic barrier;
 
+    //from tinytracer_pkg:
+    tinytracer_pkg::macro_op_t   macroop_reg; // 5b macro opcode
+    tinytracer_pkg::fmt_t        fmt_reg;
+    tinytracer_pkg::micro_word_t micro_op_word; // 13b micro op structure
+
     // Instantitate rom
     micro_op_rom m_op_rom (
         .addr (curr_addr),
@@ -107,10 +112,13 @@ module decode (
     logic       micro_issue;
     logic       vector_macro;
 
-    //from tinytracer_pkg:
-    tinytracer_pkg::macro_op_t   macroop_reg; // 5b macro opcode
-    tinytracer_pkg::fmt_t        fmt_reg;
-    tinytracer_pkg::micro_word_t micro_op_word; // 13b micro op structure
+    // STATE_DISPATCH
+    logic issue;
+    logic stall;
+    logic vector_done;
+    logic scalar_done;
+
+    
 
     // RESET LOGIC
 
@@ -119,15 +127,18 @@ module decode (
             state <= STATE_DECODE; // let decode be the reset state
             macroop_reg <= tinytracer_pkg::M_ADD; // M_ADD = 5'b00000 
             fmt_reg <= tinytracer_pkg::FMT_POS;
+            inflight <= 4'd0;
             vector_macro <= 1'b0;
             curr_addr <= 6'd0;
             op_addr_end <= 6'd0;
-            inflight <= 4'd0;
+            
         end
-        else begin
+        
+        else begin // sequential updates
             state <= next_state;
-            // udate request-specific registers only on acceptance
-            if (macro_accept) begin
+            inflight <= inflight + 4'(micro_issue) - 4'(micro.resp_done); // current outstanding + #issed - #completed
+            
+            if (macro_accept) begin // update request-specific registers only on acceptance
                 macroop_reg  <= macro.req_op.op;
                 fmt_reg      <= macro.req_op.fmt;
                 vector_macro <= macro_decode.vector; // is op a vec/scalar?
@@ -137,14 +148,20 @@ module decode (
                     op_addr_end <= macro_decode.end_addr;
                 end
             end
+
+            else if (state == STATE_DISPATCH && micro_issue) begin 
+                curr_addr <= curr_addr + 6'd1;
+            end
         end
     end
 
     // STATE LOGIC
+    // Decode acts like a server for macro ops, recieve work from upstream
+    // Decode acts like a client for micro ops, send work to the FU
 
     always @(*) begin
         next_state = state; // stay in curr state
-
+        
         // macro.if.server
         macro.req_ready = 1'b0; // accept macro op only in DECODE
         macro.resp_valid = 1'b0;
@@ -168,42 +185,79 @@ module decode (
             STATE_DECODE: begin
                 // assert rf_load, set macro.req_ready =1
                 // load into register file reg_file.sv. Load MACROOP and FMT into register
-                // is op vec/scalar? - write a function for this
+                // check is op vec/scalar
                 // VECTOR: set curr_addr to the first op row, op_addr_end to last op row
                 // SCALAR: issue single micro op to FU ctrl right away, micro opcode = MACROOP[3:0], result go to R0, u,v taken from micro.req_direct=1
                 // set next stateback to dispatch 
 
                 macro.req_ready = 1'b1;
 
-                if (!macro_decode.vector && macro.req_valid) begin // for scalar op, assign registers and break into micro ops
+                if (!macro_decode.vector && macro.req_valid) begin // for scalar op, assign registers and break macro into micro ops
                     micro.req_valid = 1'b1;
+                    micro_issue = micro.req_valid && micro.req_ready; // increments inflight
                     micro.req_direct = 1'b1;
                     micro.req_u1 = macro.req_op.u.x;
                     micro.req_v1 = macro.req_op.v.x;
-                    micro.req_op.fmt = macro.req_op.fmt;
-                    micro.req_op = {3'd0, 3'd0, 3'd0, macro.req_op.op[3:0]};
+                    micro.req_fmt = macro.req_op.fmt;
+                    micro.req_op = {3'd0, 3'd0, 3'd0, macro.req_op.op[3:0]}; // rs1, rs2 are don't cares, scalar result goes to r0=0
                 end 
                 macro_accept = macro.req_valid && macro.req_ready; // handshake complete - RTU send valid macro, DECODE accepted it
 
                 if (macro_accept) begin
-                    rf_load = 1'b1; // reg_file.sv for the loading logic
-                    
-                    
-                    next_state = STATE_DISPATCH; // we accepted macro op, move to next state
+                    rf_load = 1'b1; // assert rf load in the cycle a macro-op is accepted
+                    next_state = STATE_DISPATCH;
                 end
+            end 
+            
+            STATE_DISPATCH: begin 
+            
+                micro.req_valid = (curr_addr != op_addr_end) && (!barrier || inflight == 0);
+                micro.req_op    = micro_op_word;
+                // issue ROM vector ops, split into smaller micro ops
+                // track ops via inflight
+                // detect completion    
 
+                issue = (curr_addr != op_addr_end) && (!barrier || inflight == 0) && micro.req_ready;   
+                micro_issue = issue;
 
+                stall = (inflight != 0 && (curr_addr == op_addr_end || barrier)) || (curr_addr != op_addr_end && !micro.req_ready);   
+
+                // while (curr_addr != macro_decode.end_addr) begin // is this necesary... or handle by ROM
+                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 1) begin 
+                //         micro.req_op = {3'b000, 3'b011, 3'b000, macro.req_op.op[3:0]};
+                //         curr_addr++;
+                //         index++;
+                //     end
+                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 2) begin 
+                //         micro.req_op = {3'b001, 3'b110, 3'b001, macro.req_op.op[3:0]};
+                //         curr_addr++;
+                //         index++;
+                //     end
+                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 3) begin 
+                //         micro.req_op = {3'b010, 3'b101, 3'b010, macro.req_op.op[3:0]};
+                //         curr_addr++;
+                //         index++;
+                //     end
+                // end
+
+                vector_done = (curr_addr == op_addr_end) && (inflight == 0);
+                scalar_done = !vector_macro && micro.resp_done;
+
+                if (vector_done || scalar_done) begin
+                    next_state = STATE_WRITEBACK;
+                end
             end
-            STATE_DISPATCH: begin
-
-            end
+            
             STATE_WRITEBACK: begin
+
+                if (macro.resp_ready) begin 
+                    next_state = STATE_DECODE;
+                end
 
             end
 
         endcase
     end
-
 
     // CTRL registers
     // macro_op FMT, curr addr, ROM end addr, inflight count
