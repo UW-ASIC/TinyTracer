@@ -24,9 +24,7 @@ module reg_file (
     output logic [tinytracer_pkg::WLEN-1:0] rdata2
 );
 
-import tinytracer_pkg::*;
-
-logic [WLEN-1:0] register [0:5]; // R0, R1, ... , R5
+logic [tinytracer_pkg::WLEN-1:0] register [0:5]; // R0, R1, ... , R5
 
 // WRITE PORT 
 
