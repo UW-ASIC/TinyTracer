@@ -114,7 +114,7 @@ module decode (
     logic vector_done;
     logic scalar_done;
 
-    
+
 
     // RESET LOGIC
 
@@ -127,13 +127,13 @@ module decode (
             vector_macro <= 1'b0;
             curr_addr <= 6'd0;
             op_addr_end <= 6'd0;
-            
+
         end
-        
+
         else begin // sequential updates
             state <= next_state;
             inflight <= inflight + 4'(micro_issue) - 4'(micro.resp_done); // current outstanding + #issed - #completed
-            
+
             if (macro_accept) begin // update request-specific registers only on acceptance
                 macroop_reg  <= macro_req_op.op;
                 fmt_reg      <= macro_req_op.fmt;
@@ -145,7 +145,7 @@ module decode (
                 end
             end
 
-            else if (state == STATE_DISPATCH && micro_issue) begin 
+            else if (state == STATE_DISPATCH && micro_issue) begin
                 curr_addr <= curr_addr + 6'd1;
             end
         end
@@ -157,7 +157,7 @@ module decode (
 
     always @(*) begin
         next_state = state; // stay in curr state
-        
+
         // macro.if.server
         macro.req_ready = 1'b0; // accept macro op only in DECODE
         macro.resp_valid = 1'b0;
@@ -176,6 +176,9 @@ module decode (
 
         macro_accept = 1'b0;
         micro_issue = 1'b0;
+
+        vector_done = 1'b0;
+        scalar_done = 1'b0;
 
         case (state)
             STATE_DECODE: begin
@@ -203,38 +206,17 @@ module decode (
                     rf_load = 1'b1; // assert rf load in the cycle a macro-op is accepted
                     next_state = STATE_DISPATCH;
                 end
-            end 
-            
-            STATE_DISPATCH: begin 
-            
+            end
+
+            STATE_DISPATCH: begin
+
                 micro.req_valid = (curr_addr != op_addr_end) && (!barrier || inflight == 0);
-                micro.req_op    = micro_op_word;
-                // issue ROM vector ops, split into smaller micro ops
-                // track ops via inflight
-                // detect completion    
+                micro.req_op    = micro_op_word; // micro_op_word is determined by ROM
 
-                issue = (curr_addr != op_addr_end) && (!barrier || inflight == 0) && micro.req_ready;   
-                micro_issue = issue;
+                // Issue when request is valid and request is ready
+                micro_issue = micro.req_valid && micro.req_ready;
 
-                stall = (inflight != 0 && (curr_addr == op_addr_end || barrier)) || (curr_addr != op_addr_end && !micro.req_ready);   
-
-                // while (curr_addr != macro_decode.end_addr) begin // is this necesary... or handle by ROM
-                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 1) begin 
-                //         micro.req_op = {3'b000, 3'b011, 3'b000, macro.req_op.op[3:0]};
-                //         curr_addr++;
-                //         index++;
-                //     end
-                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 2) begin 
-                //         micro.req_op = {3'b001, 3'b110, 3'b001, macro.req_op.op[3:0]};
-                //         curr_addr++;
-                //         index++;
-                //     end
-                //     if ((tinytracer_pkg::M_VADD || tinytracer_pkg::M_VSUB || tinytracer_pkg::M_VMUL) && index == 3) begin 
-                //         micro.req_op = {3'b010, 3'b101, 3'b010, macro.req_op.op[3:0]};
-                //         curr_addr++;
-                //         index++;
-                //     end
-                // end
+                stall = (inflight != 0 && (curr_addr == op_addr_end || barrier)) || (curr_addr != op_addr_end && !micro.req_ready);
 
                 vector_done = (curr_addr == op_addr_end) && (inflight == 0);
                 scalar_done = !vector_macro && micro.resp_done;
@@ -245,10 +227,11 @@ module decode (
             end
             STATE_WRITEBACK: begin
 
-                if (macro.resp_ready) begin 
+                macro.resp_valid = 1'b1; // set our response to be valid
+
+                if (macro.resp_ready) begin // waiting until the response is done
                     next_state = STATE_DECODE;
                 end
-
             end
 
             default:
