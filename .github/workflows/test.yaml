@@ -15,9 +15,15 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Install cocotb into a venv. Outside a venv, cocotb 1.9's makefiles export
+      # PYTHONHOME for this Python, and Verilator's build then runs the system
+      # /usr/bin/python3 with it: "No module named 'encodings'", make exit 2.
       - name: Install Python packages
         shell: bash
-        run: pip install -r test/requirements.txt
+        run: |
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          .venv/bin/pip install -r test/requirements.txt
 
       # Verilator for the RTL test (Icarus does not support the SystemVerilog
       # interfaces in src), Icarus for the gate-level test. cocotb 1.9 needs

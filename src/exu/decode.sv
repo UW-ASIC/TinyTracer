@@ -132,7 +132,6 @@ module decode (
             inflight <= inflight + 4'(micro_issue) - 4'(micro.resp_done); // current outstanding + #issed - #completed
 
             if (macro_accept) begin // update request-specific registers only on acceptance
-                macroop_reg  <= macro_req_op.op;
                 fmt_reg      <= macro_req_op.fmt;
                 vector_macro <= macro_decode.vector; // is op a vec/scalar?
 
