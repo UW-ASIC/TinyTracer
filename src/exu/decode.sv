@@ -94,7 +94,6 @@ module decode (
     logic barrier;
 
     //from tinytracer_pkg:
-    tinytracer_pkg::macro_op_t   macroop_reg; // 5b macro opcode
     tinytracer_pkg::fmt_t        fmt_reg;
     tinytracer_pkg::micro_word_t micro_op_word; // 13b micro op structure
 
@@ -109,7 +108,6 @@ module decode (
     logic       vector_macro;
 
     // STATE_DISPATCH
-    logic issue;
     logic stall;
     logic vector_done;
     logic scalar_done;
@@ -121,7 +119,6 @@ module decode (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= STATE_DECODE; // let decode be the reset state
-            macroop_reg <= tinytracer_pkg::M_ADD; // M_ADD = 5'b00000
             fmt_reg <= tinytracer_pkg::FMT_POS;
             inflight <= 4'd0;
             vector_macro <= 1'b0;
