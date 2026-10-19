@@ -30,13 +30,8 @@ module decode (
 
     always @(*) begin // for DECODE & DISPATCH
         macro_decode = '0;
-<<<<<<< HEAD
-        case (macro.req_op.op) 
-            tinytracer_pkg::M_VADD: begin 
-=======
         case (macro_req_op.op) // check only the opcode of macro.req_op
             tinytracer_pkg::M_VADD: begin
->>>>>>> origin/decode-rtl
                 macro_decode.vector = 1'b1;
                 macro_decode.start_addr = 6'd0;
                 macro_decode.end_addr = 6'd3;
@@ -140,8 +135,8 @@ module decode (
             inflight <= inflight + 4'(micro_issue) - 4'(micro.resp_done); // current outstanding + #issed - #completed
             
             if (macro_accept) begin // update request-specific registers only on acceptance
-                macroop_reg  <= macro.req_op.op;
-                fmt_reg      <= macro.req_op.fmt;
+                macroop_reg  <= macro_req_op.op;
+                fmt_reg      <= macro_req_op.fmt;
                 vector_macro <= macro_decode.vector; // is op a vec/scalar?
 
                 if (macro_decode.vector) begin
@@ -197,31 +192,16 @@ module decode (
                     micro.req_valid = 1'b1;
                     micro_issue = micro.req_valid && micro.req_ready; // increments inflight
                     micro.req_direct = 1'b1;
-<<<<<<< HEAD
-                    micro.req_u1 = macro.req_op.u.x;
-                    micro.req_v1 = macro.req_op.v.x;
-                    micro.req_fmt = macro.req_op.fmt;
-                    micro.req_op = {3'd0, 3'd0, 3'd0, macro.req_op.op[3:0]}; // rs1, rs2 are don't cares, scalar result goes to r0=0
-                end 
+                    micro.req_fmt = macro_req_op.fmt; // fmt_reg is not loaded until the end of this cycle
+                    micro.req_u1 = macro_req_op.u.x;
+                    micro.req_v1 = macro_req_op.v.x;
+                    micro.req_op = {3'd0, 3'd0, 3'd0, macro_req_op.op[3:0]}; // rs1, rs2 are don't cares, scalar result goes to r0=0
+                end
                 macro_accept = macro.req_valid && macro.req_ready; // handshake complete - RTU send valid macro, DECODE accepted it
 
                 if (macro_accept) begin
                     rf_load = 1'b1; // assert rf load in the cycle a macro-op is accepted
                     next_state = STATE_DISPATCH;
-=======
-                    micro.req_fmt = macro_req_op.fmt; // fmt_reg is not loaded until the end of this cycle
-                    micro.req_u1 = macro_req_op.u.x;
-                    micro.req_v1 = macro_req_op.v.x;
-                    micro.req_op = {3'd0, 3'd0, 3'd0, macro_req_op.op[3:0]};
-                end
-                macro_accept = macro.req_valid && macro.req_ready; // handshake complete - RTU send valid macro, DECODE accepted it
-
-                if (macro_accept) begin
-                    rf_load = 1'b1; // reg_file.sv for the loading logic
-
-
-                    next_state = STATE_DISPATCH; // we accepted macro op, move to next state
->>>>>>> origin/decode-rtl
                 end
             end 
             
@@ -263,14 +243,6 @@ module decode (
                     next_state = STATE_WRITEBACK;
                 end
             end
-<<<<<<< HEAD
-            
-=======
-            STATE_DISPATCH: begin
-
-
-            end
->>>>>>> origin/decode-rtl
             STATE_WRITEBACK: begin
 
                 if (macro.resp_ready) begin 
