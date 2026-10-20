@@ -145,6 +145,7 @@ module uart (
                             4'd6: rx_sample_6 <= rx_sync;
                             4'd8: rx_sample_8 <= rx_sync;
                             4'd10: rx_sample_10 <= rx_sync;
+                            default: ;
                         endcase
 
                         if (rx_ctr == 4'd15) begin
@@ -171,6 +172,7 @@ module uart (
                             4'd6: rx_sample_6 <= rx_sync;
                             4'd8: rx_sample_8 <= rx_sync;
                             4'd10: rx_sample_10 <= rx_sync;
+                            default: ;
                         endcase
 
                         if (rx_ctr == 4'd15) begin
@@ -197,6 +199,7 @@ module uart (
                             4'd6: rx_sample_6 <= rx_sync;
                             4'd8: rx_sample_8 <= rx_sync;
                             4'd10: rx_sample_10 <= rx_sync;
+                            default: ;
                         endcase
 
                         if (rx_ctr == 4'd15) begin
