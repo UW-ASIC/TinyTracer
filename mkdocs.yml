@@ -25,6 +25,7 @@ nav:
   - SRAM:
       - "sram_control — SRAM Controller": modules/sram/sram_control.md
       - "scene_sram — Scene SRAM": modules/sram/scene_sram.md
+      - "IHP SRAM macro — Integration of the scene SRAM macro": modules/sram/ihp_sram_macro.md
   - I/O:
       - "io — Communicates with external device to load scenes and render pixels": modules/io/io.md
       - "uart — UART transceiver": modules/io/uart.md
