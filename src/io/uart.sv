@@ -45,8 +45,7 @@ module uart (
 
     reg [9:0] tx_shift_reg;
 
-    assign TT_TX = (tx_state == TX_IDLE) ? 1'b1 : tx_shift_reg[0]; 
-    assign tx.ready = (tx_state == TX_IDLE);
+   
 
     localparam RX_IDLE  = 2'd0;  //  waiting for the RX line to go low
     localparam RX_START = 2'd1;  //  sampling the possible start bit at 6, 8, and 10
@@ -54,11 +53,13 @@ module uart (
     localparam RX_STOP  = 2'd3;  //  sampling and validating the stop bit
 
     reg [1:0] rx_state;
+    reg tx_state;
 
     localparam TX_IDLE = 1'd0;  //  no byte is currently being transmitted
     localparam TX_SEND = 1'd1;  //  a framed byte is being serialized
 
-    reg tx_state;
+    assign TT_TX = (tx_state == TX_IDLE) ? 1'b1 : tx_shift_reg[0]; 
+    assign tx.ready = (tx_state == TX_IDLE);
 
     reg clkq_prev;
 
