@@ -1,0 +1,57 @@
+name: Array multiplier core tests
+
+on:
+  push:
+    paths:
+      - 'test/multiplier/**'
+      - '.github/workflows/multiplier-test.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  raw-core-pr14:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # The RTL is an unmerged dependency, kept out of this verification diff.
+      - name: Check out reviewed PR 14 RTL
+        uses: actions/checkout@v4
+        with:
+          repository: siaoeva/array-multiplier
+          ref: b51dbe4d91f34b8fec29ef5c272e8c52bc056011
+          path: dependency
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install simulator and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          .venv/bin/pip install -r test/requirements.txt
+      - name: Run raw array-core tests
+        working-directory: test/multiplier
+        run: make MULTIPLIER_RTL="$GITHUB_WORKSPACE/dependency/src/exu/functional_units/multiplier.sv"
+      - name: Require three passing tests
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('test/multiplier/results.xml').getroot()
+          cases = list(root.iter('testcase'))
+          expected = {'directed_products', 'random_back_to_back_products', 'reset_during_activity'}
+          assert {case.get('name') for case in cases} == expected, 'Missing or unexpected tests'
+          assert len(cases) == 3, 'Expected exactly three tests'
+          assert not any(root.iter('failure')), 'Test failure'
+          assert not any(root.iter('error')), 'Test error'
+          assert not any(root.iter('skipped')), 'Skipped tests'
+          PY
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: array-multiplier-results
+          path: test/multiplier/results.xml
