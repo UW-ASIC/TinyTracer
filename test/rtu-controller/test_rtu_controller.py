@@ -13,6 +13,13 @@ CLK_PERIOD_NS = 40  #25 MHz
 #values of active (rtu_blk_t in tinytracer_pkg.sv)
 BLK_CTRL, BLK_RAY_GEN, BLK_ISECT, BLK_SHADER = 0, 1, 2, 3
 
+#values of hit_kind and material (hit_kind_t and mat_type_t in tinytracer_pkg.sv)
+HIT_SKY, HIT_OBJECT = 0, 2
+MAT_DIFFUSE, MAT_EMISSIVE = 0, 3
+
+#name of each fake sub-block inside the rtu
+BLOCKS = {"rg": "u_ray_generator", "iu": "u_intersection_unit", "sh": "u_shader_core"}
+
 HDR_WORDS = 17
 
 #Header words 0 to 16 (see docs/encoding/scene.md)
@@ -75,12 +82,16 @@ async def setup(dut):
     dut.u_rtu.u_intersection_unit.hit_kind.value = 0
     dut.u_rtu.u_intersection_unit.material.value = 0
     dut.u_rtu.u_shader_core.done.value = 0
-
-    reads = []
-    cocotb.start_soon(sram_responder(dut, reads))
+    dut.sram_req_ready.value = 0
+    dut.sram_resp_valid.value = 0
+    dut.sram_resp_rdata.value = 0
 
     await ClockCycles(dut.clk, 5)
     dut.rst_n.value = 1
+
+    #Start the SRAM after reset so it doesn't count a read left over from the last test
+    reads = []
+    cocotb.start_soon(sram_responder(dut, reads))
     await RisingEdge(dut.clk)
     return reads
 
@@ -113,9 +124,12 @@ async def wait_for_start(dut, name, max_cycles):
 
 async def check_one_cycle_pulse(dut, name):
     #Call this in the cycle start is high, it should be low again next cycle
+    #No other block should start in that cycle either, since this one just started
     await RisingEdge(dut.clk)
     await ReadOnly()
     assert int(getattr(dut.u_rtu, f"{name}_start").value) == 0, f"{name}_start held for more than one cycle"
+    assert starts(dut) == (0, 0, 0), f"another block started right after {name}_start: {starts(dut)}"
+    await RisingEdge(dut.clk)  #leave ReadOnly so the caller can write signals or await ReadOnly again
 
 
 async def wait_for_header(dut, reads, max_cycles=2 * HDR_WORDS + 20):
@@ -134,6 +148,60 @@ async def render_to_raygen_start(dut, reads):
     assert len(reads) == HDR_WORDS, f"rg_start before the header load finished: reads = {reads}"
     assert mode == 0, f"expected rg_mode 0 (camera ray), got {mode}"
     await check_one_cycle_pulse(dut, "rg")
+
+
+async def done_then_start(dut, done_block, next_block, expected_mode, hit_kind=None, material=None):
+    #Pulse done on one block for one cycle, then check the next block starts in the right mode
+    #Blocks are "rg", "iu" or "sh". For now the start can be up to 2 cycles after done
+    #hit_kind and material are only valid while done is high, so after that we change them
+    #to a different legal value. A controller that reads them late will then fail
+    #TODO: make this same cycle only once the FSM is done
+    rtu = dut.u_rtu
+    iu = rtu.u_intersection_unit
+    done = getattr(rtu, BLOCKS[done_block]).done
+    next_start = getattr(rtu, f"{next_block}_start")
+    other_starts = [getattr(rtu, f"{name}_start") for name in BLOCKS if name != next_block]
+
+    def end_done():
+        done.value = 0
+        if hit_kind is not None:
+            iu.hit_kind.value = hit_kind ^ 2  #SKY <-> OBJECT
+        if material is not None:
+            iu.material.value = material ^ 3  #DIFFUSE <-> EMISSIVE
+
+    done.value = 1
+    if hit_kind is not None:
+        iu.hit_kind.value = hit_kind
+    if material is not None:
+        iu.material.value = material
+
+    for _ in range(3):
+        await ReadOnly()
+        if int(next_start.value):
+            break
+        assert starts(dut) == (0, 0, 0), f"wrong block started {starts(dut)} after {done_block} done"
+        await RisingEdge(dut.clk)
+        end_done()
+    else:
+        assert False, f"{next_block}_start not seen within 2 cycles of {done_block} done"
+
+    mode = int(getattr(rtu, f"{next_block}_mode").value)
+    assert mode == expected_mode, f"expected {next_block}_mode {expected_mode}, got {mode}"
+    assert all(int(s.value) == 0 for s in other_starts), f"another block started with {next_block}_start: {starts(dut)}"
+
+    await RisingEdge(dut.clk)
+    end_done()
+    await ReadOnly()
+    assert int(next_start.value) == 0, f"{next_block}_start held for more than one cycle"
+    assert starts(dut) == (0, 0, 0), f"another block started right after {next_block}_start: {starts(dut)}"
+    await RisingEdge(dut.clk)
+
+
+async def reach_iu_search(dut):
+    #Steps most path tests share: reset, render, header load, ray generator mode 0, then intersection unit mode 0
+    reads = await setup(dut)
+    await render_to_raygen_start(dut, reads)
+    await done_then_start(dut, "rg", "iu", 0)
 
 
 @cocotb.test()
@@ -232,3 +300,46 @@ async def test_raygen_done_starts_isect(dut):
     rg_done.value = 0
     await ReadOnly()
     assert int(dut.u_rtu.iu_start.value) == 0, "iu_start held for more than one cycle"
+
+
+@cocotb.test()
+async def test_sky_path(dut):
+    #Ray hit nothing, so the shader core should make the sky sample (mode 0)
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "sh", 0, hit_kind=HIT_SKY)
+
+
+@cocotb.test()
+async def test_object_path(dut):
+    #Ray hit an object, so the intersection unit should read the object next (mode 1)
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+
+
+@cocotb.test()
+async def test_emissive_object(dut):
+    #Object glows, so the shader core should make the glow sample (mode 1)
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "sh", 1, material=MAT_EMISSIVE)
+
+
+@cocotb.test()
+async def test_diffuse_object(dut):
+    #Object doesn't glow and we are under the bounce limit
+    #so the intersection unit should get the hit point and normal next (mode 2)
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "iu", 2, material=MAT_DIFFUSE)
+
+
+@cocotb.test()
+async def test_diffuse_bounce(dut):
+    #After the hit point and normal, the shader core updates the attenuation (mode 2)
+    #Then the ray generator makes the bounce ray, mode = material + 1 = 1 for diffuse
+    #material has changed by now, so this also checks the controller saved it
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "iu", 2, material=MAT_DIFFUSE)
+    await done_then_start(dut, "iu", "sh", 2)
+    await done_then_start(dut, "sh", "rg", 1)
