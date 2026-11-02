@@ -44,10 +44,10 @@ module shader_core #(
 
 localparam SCRATCH_BITS     = 40;
 localparam STATE_BITS       = 5;
-localparam M_VMUL           = 5'b10011;
-localparam M_VADD           = 5'b00000;
-localparam M_VSUB           = 5'b00001;
-localparam M_SCAL_VEC       = 5'b01110;
+localparam M_VMUL           = tinytracer_pkg::M_VMUL;
+localparam M_VADD           = tinytracer_pkg::M_VADD;
+localparam M_VSUB           = tinytracer_pkg::M_VSUB;
+localparam M_SCAL_VEC       = tinytracer_pkg::M_SCAL_VEC;
 
 typedef enum logic [STATE_BITS-1:0] {
     STATE_IDLE      ,
