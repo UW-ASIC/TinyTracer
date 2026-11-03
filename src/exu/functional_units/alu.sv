@@ -63,8 +63,8 @@ always_comb begin
         // 2) compare logic
         ALU_EQ : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
         ALU_NE : fu.resp_result = (!raw_res) ? SIGNED_ONE : MIN_CLAMP ;
-        ALU_LT : fu.resp_result = (sub_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
-        ALU_GE : fu.resp_result = !(sub_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
+        ALU_LT : fu.resp_result = (add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
+        ALU_GE : fu.resp_result = !(add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
         default : fu.resp_result = MIN_CLAMP;
     endcase
 end
