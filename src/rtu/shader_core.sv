@@ -185,17 +185,7 @@ always_comb begin
   endcase
 end
 
-always_comb begin
-  path_end = scratch_r[36];
-  case (state_r)
-    STATE_GLO2W: path_end = 1'b1;
-    // STATE_ZERO:  uses scratch_r value
-    // STATE_OBJ1W: uses scratch_r value
-    // STATE_SKY4W: uses scratch_r value
-    // STATE_SURW:  uses scratch_r value
-    default:;
-  endcase
-end
+assign path_end = scratch_r[36];
 
 always_comb begin
   case (state_r)
@@ -293,7 +283,10 @@ always_ff @(posedge clk or negedge rst_n) begin
       STATE_SKY3W:  scratch_r[26:0]   <= sky123w_res;        
       STATE_SKY4W:  scratch_r[35:0]   <= sky4w_res;
       STATE_GLO1W:  scratch_r[23:0]   <= glo1w_res;
-      STATE_GLO2W:  scratch_r[35:0]   <= glo2w_res;
+      STATE_GLO2W:  begin
+        scratch_r[35:0]   <= glo2w_res; 
+        scratch_r[36]     <= 1'b1;
+      end
       STATE_SUR:    scratch_r[36]     <= 1'b0;
       default:;
     endcase
