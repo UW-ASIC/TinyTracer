@@ -14,21 +14,21 @@ module rng #(
 );
 
     localparam int W = tinytracer_pkg::WLEN;     // For ease of use
-    logic [W-1:0] lsfr, lsfr_next;     // Isolate internal states from output
+    logic [W-1:0] lfsr, lfsr_next;     // Isolate internal states from output
 
     always_comb begin
-        lfsr_next = lsfr;
+        lfsr_next = lfsr;
         for (int i = 0; i < W; i++)     // Unrolls to shift 16 times
             lfsr_next = {lfsr_next[W-2:0], 1'b0} ^ ({W{lfsr_next[W-1]}} & TAPS);    // Implementation of state <= state[msb] ? state_shifted ^ taps : state_shifted
     end
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            lsfr <= SEED;     // Doc specifies always reset to 'b1, assume SEED will always be 'b1
+            lfsr <= SEED;     // Doc specifies always reset to 'b1, assume SEED will always be 'b1
         end else if (req) begin
-            lsfr <= lsfr_next;
+            lfsr <= lfsr_next;
         end
     end
-    assign rand_num = lsfr;
+    assign rand_num = lfsr;
     
 endmodule
