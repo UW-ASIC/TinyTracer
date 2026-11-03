@@ -58,13 +58,13 @@ always_comb begin
 
     case (reg_req_opcode)
         // 1) saturation logic
-        ALU_ADD, ALU_SUB: fu.resp_result = add_overflow ? (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
+        3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
 
         // 2) compare logic
-        ALU_EQ : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
-        ALU_NE : fu.resp_result = (!raw_res) ? SIGNED_ONE : MIN_CLAMP ;
-        ALU_LT : fu.resp_result = (add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
-        ALU_GE : fu.resp_result = !(add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
+        3'b010 : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
+        3'b011 : fu.resp_result = (!raw_res) ? SIGNED_ONE : MIN_CLAMP ;
+        3'b100 : fu.resp_result = (add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
+        3'b101 : fu.resp_result = !(add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
         default : fu.resp_result = MIN_CLAMP;
     endcase
 end
