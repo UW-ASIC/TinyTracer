@@ -19,16 +19,20 @@
 //   mirror  R_    D.n, 2(D.n), 2(D.n)n, D-2(D.n)n
 //   glass   G_    D.n, cos, k, Schlick share, compare, then reflect (joins the
 //                 mirror states) or refract
-//   bounce  PUSH_ O = hit point + 0.031 n  (- 0.031 n for a refracted ray)
+//   bounce  PUSH_ O = hit point + 0.031 n  (PUSH_IN: - 0.031 n, refracted ray)
 //
 // Notes
+//   - The RTU holds every input stable from start until done, so no input is
+//     registered here: the only flip-flops are state and waiting. mode is read
+//     directly, and a refracted glass ray takes its own push-off state.
 //   - Glass reflects with D - 2(D.n)n, the same value as D + 2cos(t)n because
 //     cos(t) = -(D.n), so it reuses the mirror states.
 //   - k < 0 is read from the sign bit of k, so it takes no compare macro-op,
 //     and total internal reflection skips the Schlick share. Glass takes 67
 //     (reflect) or 167 (refract) cycles before the push-off.
-//   - Every macro-op uses FMT_DIR: all products here are DIR x DIR -> DIR.
-//     The push-off scalar 4 times a DIR normal gives 4 POS steps along n.
+//   - Every macro-op uses FMT_DIR: products are DIR x DIR -> DIR, and the
+//     push-off is POS x DIR -> POS (4 POS steps along the DIR normal n).
+//     M_NORM is sent with v1 = 1.0 (DIR), as the result encoding requires.
 module ray_generator (
     input  logic                            clk,
     input  logic                            rst_n,
@@ -94,7 +98,7 @@ module ray_generator (
   localparam logic [WLEN-1:0] K_R0      = 16'd655;    // 0.04, Schlick R0 for index 1.5
   localparam logic [WLEN-1:0] K_1MR0    = 16'd15729;  // 0.96 = 1 - R0
 
-  // Push-off scalar: (4 x n) >>> 14 is 4 POS steps along a DIR normal n
+  // Push-off scalar, POS: 4 steps = 0.031. (4 x n) >>> 14 moves 4 POS steps along n
   localparam logic [WLEN-1:0] K_PUSH     = 16'd4;
   localparam logic [WLEN-1:0] K_PUSH_NEG = 16'hFFFC;  // -4
 
@@ -157,14 +161,13 @@ module ray_generator (
     S_G_SUM,     // eta D + (eta cos - sqrt(k)) n
     S_G_NORM,    // resize                        -> D
     // Push-off, every bounce
-    S_PUSH_SCL,  // +-4 POS steps along n
+    S_PUSH_SCL,  // +4 POS steps along n (off the surface)
+    S_PUSH_IN,   // -4 POS steps along n (into the glass, refracted ray)
     S_PUSH_ADD   // hit point + that              -> O, done
-  } state_e;
+  } state_t;
 
-  state_e     state;
-  logic       waiting;  // macro-op sent, waiting for resp_valid
-  logic [1:0] mode_q;   // mode, registered with start
-  logic       refract;  // glass ray refracts: push the origin into the glass
+  state_t state;
+  logic   waiting;  // macro-op sent, waiting for resp_valid
 
   logic busy, issue, fire, resp_ok;
   assign busy    = (state != S_IDLE);
@@ -264,7 +267,7 @@ module ray_generator (
       S_P_FAR:  begin op = tinytracer_pkg::M_VADD;     opu = hdr_f;   opv = res;                    end
       S_P_BU:   begin op = tinytracer_pkg::M_SCAL_VEC; opu.x = jit_b; opv = hdr_u; use_rand = 1'b1; end
       S_P_SUM:  begin op = tinytracer_pkg::M_VADD;     opu = ray_d;   opv = res;                    end
-      S_P_NORM: begin op = tinytracer_pkg::M_NORM;     opu = res;     resize = 1'b1;                end
+      S_P_NORM: begin op = tinytracer_pkg::M_NORM;     opu = res;     opv.x = DIR_ONE; resize = 1'b1; end
 
       // Matte and ground
       S_M_PHI:  begin op = tinytracer_pkg::M_MUL;  opu.x = r_unit;   opv.x = K_PI_2;   use_rand = 1'b1; end
@@ -283,7 +286,7 @@ module ray_generator (
         opv.z    = scratch[SC_Z];
         use_rand = 1'b1;
       end
-      S_M_NORM: begin op = tinytracer_pkg::M_NORM; opu = res; resize = 1'b1; end
+      S_M_NORM: begin op = tinytracer_pkg::M_NORM; opu = res; opv.x = DIR_ONE; resize = 1'b1; end
 
       // Mirror
       S_R_DOT:  begin op = tinytracer_pkg::M_DOT;      opu = ray_d;             opv = ray_n;             end
@@ -311,14 +314,11 @@ module ray_generator (
       S_G_COEF: begin op = tinytracer_pkg::M_SUB;      opu.x = rx;              opv.x = scratch[SC_SQK]; end
       S_G_CN:   begin op = tinytracer_pkg::M_SCAL_VEC; opu.x = rx;              opv = ray_n;             end
       S_G_SUM:  begin op = tinytracer_pkg::M_VADD;     opu = ray_d;             opv = res;               end
-      S_G_NORM: begin op = tinytracer_pkg::M_NORM;     opu = res;               resize = 1'b1;           end
+      S_G_NORM: begin op = tinytracer_pkg::M_NORM;     opu = res;               opv.x = DIR_ONE; resize = 1'b1; end
 
       // Push-off, every bounce
-      S_PUSH_SCL: begin
-        op    = tinytracer_pkg::M_SCAL_VEC;
-        opu.x = refract ? K_PUSH_NEG : K_PUSH;
-        opv   = ray_n;
-      end
+      S_PUSH_SCL: begin op = tinytracer_pkg::M_SCAL_VEC; opu.x = K_PUSH;     opv = ray_n; end
+      S_PUSH_IN:  begin op = tinytracer_pkg::M_SCAL_VEC; opu.x = K_PUSH_NEG; opv = ray_n; end
       S_PUSH_ADD: begin op = tinytracer_pkg::M_VADD; opu = ray_o; opv = res; end
 
       default: ;  // S_IDLE
@@ -335,7 +335,7 @@ module ray_generator (
       default:                                            u_fields = 3'b001;
     endcase
     case (op)
-      tinytracer_pkg::M_SQRT, tinytracer_pkg::M_NORM:     v_fields = 3'b000;
+      tinytracer_pkg::M_SQRT:                             v_fields = 3'b000;
       tinytracer_pkg::M_DOT, tinytracer_pkg::M_VADD,
       tinytracer_pkg::M_VSUB, tinytracer_pkg::M_SCAL_VEC: v_fields = 3'b111;
       default:                                            v_fields = 3'b001;
@@ -356,109 +356,101 @@ module ray_generator (
   //---------------------------- Response (wait phase) -------------------------
   // Where each state's result goes, and the next state.
 
-  state_e                nxt;
+  state_t                next_state;
   logic                  rsp_sc_we;    // write rx into scratch word rsp_sc_idx
   logic [2:0]            rsp_sc_idx;
   logic                  rsp_d_we;
   tinytracer_pkg::vec3_t rsp_d;
   logic                  rsp_o_we;
   tinytracer_pkg::vec3_t rsp_o;
-  logic                  set_refract;
   logic                  finish;
 
   always_comb begin
-    nxt         = state;
+    next_state  = state;
     rsp_sc_we   = 1'b0;
     rsp_sc_idx  = '0;
     rsp_d_we    = 1'b0;
     rsp_d       = res;
     rsp_o_we    = 1'b0;
     rsp_o       = res;
-    set_refract = 1'b0;
     finish      = 1'b0;
 
     case (state)
       // Camera ray
-      S_P_AR:   nxt = S_P_FAR;
-      S_P_FAR:  begin nxt = S_P_BU; rsp_d_we = 1'b1; end
-      S_P_BU:   nxt = S_P_SUM;
-      S_P_SUM:  nxt = S_P_NORM;
+      S_P_AR:   next_state = S_P_FAR;
+      S_P_FAR:  begin next_state = S_P_BU; rsp_d_we = 1'b1; end
+      S_P_BU:   next_state = S_P_SUM;
+      S_P_SUM:  next_state = S_P_NORM;
       S_P_NORM: begin
-        nxt      = S_IDLE;
-        rsp_d_we = 1'b1;
-        rsp_o_we = 1'b1;
-        rsp_o    = '0;
-        rsp_o.z  = cam_z;
-        finish   = 1'b1;
+        next_state = S_IDLE;
+        rsp_d_we   = 1'b1;
+        rsp_o_we   = 1'b1;
+        rsp_o      = '0;
+        rsp_o.z    = cam_z;
+        finish     = 1'b1;
       end
 
       // Matte and ground
-      S_M_PHI:  begin nxt = S_M_ZSQ;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_PHI;  end
-      S_M_ZSQ:  nxt = S_M_1MZ;
-      S_M_1MZ:  nxt = S_M_RHO;
-      S_M_RHO:  begin nxt = S_M_RCOS; rsp_sc_we = 1'b1; rsp_sc_idx = SC_RHO;  end
-      S_M_RCOS: begin nxt = S_M_PHM;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_RCOS; end
-      S_M_PHM:  nxt = S_M_RSIN;
-      S_M_RSIN: nxt = S_M_NR;
+      S_M_PHI:  begin next_state = S_M_ZSQ;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_PHI;  end
+      S_M_ZSQ:  next_state = S_M_1MZ;
+      S_M_1MZ:  next_state = S_M_RHO;
+      S_M_RHO:  begin next_state = S_M_RCOS; rsp_sc_we = 1'b1; rsp_sc_idx = SC_RHO;  end
+      S_M_RCOS: begin next_state = S_M_PHM;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_RCOS; end
+      S_M_PHM:  next_state = S_M_RSIN;
+      S_M_RSIN: next_state = S_M_NR;
       S_M_NR: begin
         if (res == '0) begin  // the resize would find no leading 1: D = n
-          nxt      = S_PUSH_SCL;
-          rsp_d_we = 1'b1;
-          rsp_d    = ray_n;
+          next_state = S_PUSH_SCL;
+          rsp_d_we   = 1'b1;
+          rsp_d      = ray_n;
         end else begin
-          nxt      = S_M_NORM;
+          next_state = S_M_NORM;
         end
       end
-      S_M_NORM: begin nxt = S_PUSH_SCL; rsp_d_we = 1'b1; end
+      S_M_NORM: begin next_state = S_PUSH_SCL; rsp_d_we = 1'b1; end
 
       // Mirror
       S_R_DOT: begin
-        nxt        = (mode_q == MODE_GLASS) ? S_G_COS : S_R_2DN;
+        next_state = (mode == MODE_GLASS) ? S_G_COS : S_R_2DN;
         rsp_sc_we  = 1'b1;
         rsp_sc_idx = SC_DOT;
       end
-      S_R_2DN:  nxt = S_R_SCL;
-      S_R_SCL:  nxt = S_R_SUB;
-      S_R_SUB:  begin nxt = S_PUSH_SCL; rsp_d_we = 1'b1; end
+      S_R_2DN:  next_state = S_R_SCL;
+      S_R_SCL:  next_state = S_R_SUB;
+      S_R_SUB:  begin next_state = S_PUSH_SCL; rsp_d_we = 1'b1; end
 
       // Glass
-      S_G_COS:  begin nxt = S_G_C2; rsp_sc_we = 1'b1; rsp_sc_idx = SC_COS; end
-      S_G_C2:   nxt = S_G_S2;
-      S_G_S2:   nxt = S_G_ES2;
-      S_G_ES2:  nxt = S_G_E2S2;
-      S_G_E2S2: nxt = S_G_K;
+      S_G_COS:  begin next_state = S_G_C2; rsp_sc_we = 1'b1; rsp_sc_idx = SC_COS; end
+      S_G_C2:   next_state = S_G_S2;
+      S_G_S2:   next_state = S_G_ES2;
+      S_G_ES2:  next_state = S_G_E2S2;
+      S_G_E2S2: next_state = S_G_K;
       S_G_K: begin
-        nxt        = rx[WLEN-1] ? S_R_2DN : S_G_X;  // k < 0: total internal reflection
+        next_state = rx[WLEN-1] ? S_R_2DN : S_G_X;  // k < 0: total internal reflection
         rsp_sc_we  = 1'b1;
         rsp_sc_idx = SC_K;
       end
-      S_G_X:    begin nxt = S_G_X2; rsp_sc_we = 1'b1; rsp_sc_idx = SC_X; end
-      S_G_X2:   nxt = S_G_X4;
-      S_G_X4:   nxt = S_G_X5;
-      S_G_X5:   nxt = S_G_SCH;
-      S_G_SCH:  nxt = S_G_R;
-      S_G_R:    nxt = S_G_CMP;
-      S_G_CMP: begin
-        if (rx[WLEN-1]) begin  // rand < R: reflect
-          nxt         = S_R_2DN;
-        end else begin
-          nxt         = S_G_ED;
-          set_refract = 1'b1;
-        end
-      end
-      S_G_ED:   begin nxt = S_G_SQK; rsp_d_we = 1'b1; end
-      S_G_SQK:  begin nxt = S_G_EC;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_SQK; end
-      S_G_EC:   nxt = S_G_COEF;
-      S_G_COEF: nxt = S_G_CN;
-      S_G_CN:   nxt = S_G_SUM;
-      S_G_SUM:  nxt = S_G_NORM;
-      S_G_NORM: begin nxt = S_PUSH_SCL; rsp_d_we = 1'b1; end
+      S_G_X:    begin next_state = S_G_X2; rsp_sc_we = 1'b1; rsp_sc_idx = SC_X; end
+      S_G_X2:   next_state = S_G_X4;
+      S_G_X4:   next_state = S_G_X5;
+      S_G_X5:   next_state = S_G_SCH;
+      S_G_SCH:  next_state = S_G_R;
+      S_G_R:    next_state = S_G_CMP;
+      S_G_CMP:  next_state = rx[WLEN-1] ? S_R_2DN : S_G_ED;  // rand < R: reflect, else refract
+      S_G_ED:   begin next_state = S_G_SQK; rsp_d_we = 1'b1; end
+      S_G_SQK:  begin next_state = S_G_EC;  rsp_sc_we = 1'b1; rsp_sc_idx = SC_SQK; end
+      S_G_EC:   next_state = S_G_COEF;
+      S_G_COEF: next_state = S_G_CN;
+      S_G_CN:   next_state = S_G_SUM;
+      S_G_SUM:  next_state = S_G_NORM;
+      S_G_NORM: begin next_state = S_PUSH_IN;  rsp_d_we = 1'b1; end
 
       // Push-off, every bounce
-      S_PUSH_SCL: nxt = S_PUSH_ADD;
-      S_PUSH_ADD: begin nxt = S_IDLE; rsp_o_we = 1'b1; finish = 1'b1; end
+      S_PUSH_SCL,
+      S_PUSH_IN:  next_state = S_PUSH_ADD;
+      S_PUSH_ADD: begin next_state = S_IDLE; rsp_o_we = 1'b1; finish = 1'b1; end
 
-      default: nxt = S_IDLE;
+      default: next_state = S_IDLE;
     endcase
   end
 
@@ -485,29 +477,24 @@ module ray_generator (
 
   //---------------------------- FSM -------------------------------------------
 
-  always_ff @(posedge clk or negedge rst_n) begin
+  always_ff @(posedge clk) begin
     if (!rst_n) begin
       state   <= S_IDLE;
       waiting <= 1'b0;
-      mode_q  <= MODE_CAMERA;
-      refract <= 1'b0;
     end else if (state == S_IDLE) begin
-      if (start) begin  // registers mode; start is ignored while busy
+      if (start) begin  // start is ignored while busy
         case (mode)
           MODE_CAMERA:             state <= S_P_AR;
           MODE_MATTE:              state <= S_M_PHI;
           MODE_MIRROR, MODE_GLASS: state <= S_R_DOT;  // both start with D . n
           default:                 state <= S_IDLE;
         endcase
-        mode_q  <= mode;
-        refract <= 1'b0;
       end
     end else if (fire) begin
       waiting <= 1'b1;
     end else if (resp_ok) begin
-      state   <= nxt;
+      state   <= next_state;
       waiting <= 1'b0;
-      if (set_refract) refract <= 1'b1;
     end
   end
 
