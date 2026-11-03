@@ -21,7 +21,7 @@ logic [2:0] reg_req_opcode;
 logic sub_en;
 logic signed [WLEN-1:0] t_reg_req_op2;
 logic signed [WLEN-1:0] raw_res;
-logic sub_overflow;
+logic add_overflow;
 
 // local parameters
 localparam signed [WLEN-1:0] MAX_CLAMP = {1'b0, {WLEN-1{1'b1}}};
@@ -54,13 +54,11 @@ always_comb begin
     raw_res = reg_req_op1 + t_reg_req_op2;
 
     // detect overflow
-    sub_overflow = (reg_req_op1[15] != reg_req_op2[15]) && (reg_req_op1[15] != raw_res[15]) ? 1'b1 : 1'b0;
+    add_overflow = (reg_req_op1[15] == reg_req_op2[15]) && (reg_req_op1[15] != raw_res[15]) ? 1'b1 : 1'b0;
 
     case (reg_req_opcode)
         // 1) saturation logic
-        ALU_ADD : fu.resp_result = (reg_req_op1[15] == reg_req_op2[15]) && (reg_req_op1[15] != raw_res[15]) ? 
-            (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
-        ALU_SUB : fu.resp_result = sub_overflow ? (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
+        ALU_ADD, ALU_SUB: fu.resp_result = add_overflow ? (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
 
         // 2) compare logic
         ALU_EQ : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
