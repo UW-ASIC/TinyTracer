@@ -1,7 +1,8 @@
 import random
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, RisingEdge, Timer
+from cocotb.triggers import ClockCycles, RisingEdge, Timer, FallingEdge
+from cocotb.utils import get_sim_time
 
 CLK_NS = 40
 CLKQ_DIV = 8
@@ -32,7 +33,7 @@ async def setup(dut):
     dut.rst_n.value = 1
     await ClockCycles(dut.clk, BIT_CYCLES)
 
-
+# rx helper functions
 async def send_byte(dut, byte, stop_bit=1):
     bits = [0] + [(byte >> i) & 1 for i in range(8)] + [stop_bit]
     for bit in bits:
@@ -48,6 +49,45 @@ async def collect_bytes(dut, received):
             received.append(int(dut.rx_data.value))
 
 
+# tx helper functions
+async def submit_tx_byte(dut, byte):
+    await FallingEdge(dut.clk)
+    dut.tx_data.value = byte
+    dut.tx_valid.value = 1
+
+    while True:
+        await RisingEdge(dut.clk)
+        if dut.tx_ready.value == 1:
+            break
+
+    await FallingEdge(dut.clk)
+    dut.tx_valid.value = 0
+
+async def check_tx_bytes(dut, data):
+    for byte in data:
+        await FallingEdge(dut.TT_TX)
+
+        for i in range(6):
+            await Timer(BIT_NS // 8, "ns")
+            assert dut.TT_TX.value == 0, "TX start bit isn't low"
+
+        for i in range(8):
+            if i == 0:
+                wait_ns = 3 * BIT_NS // 4
+            else:
+                wait_ns = BIT_NS
+            await Timer(wait_ns, "ns")
+            expected = (byte >> i) & 1
+
+            assert dut.TT_TX.value == expected, f"Wrong TX bit {i}: expected {expected}, got {dut.TT_TX.value}"
+            assert dut.tx_ready.value == 0, "TX became ready during transmission"
+            
+        await Timer(BIT_NS, "ns")
+        assert dut.TT_TX.value == 1, "TX stop bit isn't high"
+        assert dut.tx_ready.value == 0, "TX became ready during stop bit"
+
+
+# rx testing
 @cocotb.test()
 async def test_rx_reset_and_idle(dut):
     await setup(dut)
