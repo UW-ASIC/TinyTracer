@@ -20,8 +20,8 @@ module shader_core #(
     output logic [35:0]            sample,       // R [35:24], G [23:12], B [11:0], valid with path_end = 1
 
     // Ray and scene, from RTU registers (must not change from start to done)
-    input  logic [47:0]            ray_origin,   // hit point, POS (Q9.7): z [47:32], y [31:16], x [15:0]
-    input  logic [47:0]            ray_dir,      // D, DIR (Q2.14), length 1: z [47:32], y [31:16], x [15:0]
+    input  logic                   checker_sel,  // ray origin x[9]^y[9], used for checkerboard drawing
+    input  logic [15:0]            dir_z,        // D, DIR (Q2.14), length 1: z [47:32], y [31:16], x [15:0]
     input  logic [23:0]            sky_horizon,  // R [23:16], G [15:8], B [7:0]
     input  logic [23:0]            sky_top,      // same order
     input  logic [23:0]            ground_a,     // checker colours, same order
@@ -51,6 +51,7 @@ localparam M_SCAL_VEC       = tinytracer_pkg::M_SCAL_VEC;
 
 typedef enum logic [STATE_BITS-1:0] {
     STATE_IDLE      ,
+    STATE_OBJ1      ,
     STATE_OBJ1W     ,
     STATE_OBJ2      ,
     STATE_OBJ2W     ,
@@ -121,13 +122,13 @@ assign att_p1_in          = tmp_p1;
 assign att_in             = {8'b0, att_r[23:16],        8'b0, att_r[15:8],        8'b0, att_r[7:0]};
 assign sky_top_in         = {8'b0, sky_top[23:16],      8'b0, sky_top[15:8],      8'b0, sky_top[7:0]};
 assign sky_hor_in         = {8'b0, sky_horizon[23:16],  8'b0, sky_horizon[15:8],  8'b0, sky_horizon[7:0]};
-assign dz                 = ray_dir[47] ? 16'b0 : ray_dir[47:32];
+assign dz                 = dir_z[15] ? 16'b0 : dir_z;
 assign dz_in              = {3{dz}};
 assign sky_ext_in         = { {7{scratch_r[26]}}, scratch_r[26:18], // Red
                               {7{scratch_r[17]}}, scratch_r[17:9],  // Green
                               {7{scratch_r[8]}},  scratch_r[8:0] }; // Blue
 assign col_in             = {8'b0, scratch_r[23:16],    8'b0, scratch_r[15:8],    8'b0, scratch_r[7:0]};           
-assign str_in             = {2'b0, scratch_r[39:26],    2'b0, scratch_r[39:26],   2'b0, scratch_r[39:26]};
+assign str_in             = {3{2'b0, scratch_r[39:26]}};
 
 // Macro-op result wires
 assign sur_res            = {resp_result[40:33], resp_result[24:17], resp_result[8:1]};
@@ -137,17 +138,17 @@ assign glo1w_res          = {resp_result[40:33], resp_result[24:17], resp_result
 assign glo2w_res          = {resp_result[46:35], resp_result[30:19], resp_result[14:3]};
 
 // Miscellaneous next-state wires
-assign gnd_col            = (ray_origin[9] ^ ray_origin[25]) ? ground_a : ground_b;
+assign gnd_col            = checker_sel ? ground_a : ground_b;
 
 // State transition wires
 assign obj1_to_zro        = ~&sram_data[1:0] & last_bounce;
 assign obj3_to_glo        = &scratch_r[25:24];
 
 // SRAM read wires
-assign sram_addr          = hit_addr + ((state_r == STATE_IDLE || state_r == STATE_OBJ1W) ? 2 :
+assign sram_addr          = hit_addr + ((state_r == STATE_OBJ1 || state_r == STATE_OBJ1W) ? 2 :
                                         (state_r == STATE_OBJ2 || state_r == STATE_OBJ2W) ? 1 :
                                                                                             0);
-assign sram_rd            = (state_r == STATE_IDLE && &{start, hit, ~hit_ground}) ||
+assign sram_rd            = (state_r == STATE_OBJ1) ||
                             (state_r == STATE_OBJ2) ||
                             (state_r == STATE_OBJ3) ;
 
@@ -162,13 +163,13 @@ assign req_valid          = (state_r == STATE_SKY1) ||
 assign resp_ready         = '1;
 
 // Output wires
-assign material           = scratch_r[25:24];
-
 assign done               = (state_r == STATE_ZERO)                                 ||
                             (state_r == STATE_OBJ1W && &{sram_valid, obj1_to_zro})  ||
                             (state_r == STATE_SKY4W && resp_valid)                  ||
                             (state_r == STATE_GLO2W && resp_valid)                  ||
                             (state_r == STATE_SURW  && resp_valid)                  ;
+assign material           = scratch_r[25:24];
+assign path_end           = scratch_r[36];
 
 // sometimes, done=1 but scratch_r does not have the correct values yet
 // to produce correct values, we override sample and path_end with combi logic
@@ -184,8 +185,6 @@ always_comb begin
     default:;
   endcase
 end
-
-assign path_end = scratch_r[36];
 
 always_comb begin
   case (state_r)
@@ -211,12 +210,13 @@ always_ff @(posedge clk or negedge rst_n) begin
       STATE_IDLE:
         casez ({start, hit, hit_ground, last_bounce})
           4'b10??:  state_r <= STATE_SKY1;          // Sky sample
-          4'b110?:  state_r <= STATE_OBJ1W;         // Zero sample / Glow sample / Object surface
+          4'b110?:  state_r <= STATE_OBJ1;          // Zero sample / Glow sample / Object surface
           4'b1111:  state_r <= STATE_ZERO;          // Zero sample
           4'b1110:  state_r <= STATE_SUR;           // Ground surface
           default:;
         endcase
 
+      STATE_OBJ1:                   state_r <= STATE_OBJ1W;
       STATE_OBJ1W:
         case ({sram_valid, obj1_to_zro})
           2'b11:    state_r <= STATE_IDLE;          // Zero sample
@@ -283,10 +283,7 @@ always_ff @(posedge clk or negedge rst_n) begin
       STATE_SKY3W:  scratch_r[26:0]   <= sky123w_res;        
       STATE_SKY4W:  scratch_r[35:0]   <= sky4w_res;
       STATE_GLO1W:  scratch_r[23:0]   <= glo1w_res;
-      STATE_GLO2W:  begin
-        scratch_r[35:0]   <= glo2w_res; 
-        scratch_r[36]     <= 1'b1;
-      end
+      STATE_GLO2W:  scratch_r[36:0]   <= {1'b1, glo2w_res};
       STATE_SUR:    scratch_r[36]     <= 1'b0;
       default:;
     endcase
