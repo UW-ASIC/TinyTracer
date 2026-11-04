@@ -54,17 +54,17 @@ always_comb begin
     raw_res = reg_req_op1 + t_reg_req_op2;
 
     // detect overflow
-    add_overflow = (reg_req_op1[15] == reg_req_op2[15]) && (reg_req_op1[15] != raw_res[15]) ? 1'b1 : 1'b0;
+    add_overflow = (reg_req_op1[WLEN-1] == t_reg_req_op2[WLEN-1]) && (reg_req_op1[WLEN-1] != raw_res[WLEN-1]) ? 1'b1 : 1'b0;
 
     case (reg_req_opcode)
         // 1) saturation logic
-        3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[15]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
+        3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[WLEN-1]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
 
         // 2) compare logic
         3'b010 : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
         3'b011 : fu.resp_result = (!raw_res) ? SIGNED_ONE : MIN_CLAMP ;
-        3'b100 : fu.resp_result = (add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
-        3'b101 : fu.resp_result = !(add_overflow ^ raw_res[15]) ? SIGNED_ONE : MIN_CLAMP;
+        3'b100 : fu.resp_result = (add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : MIN_CLAMP;
+        3'b101 : fu.resp_result = !(add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : MIN_CLAMP;
         default : fu.resp_result = MIN_CLAMP;
     endcase
 end
