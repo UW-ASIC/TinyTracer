@@ -64,12 +64,24 @@ endif
 # Allow sharing configuration between design and testbench via `include`:
 COMPILE_ARGS 		+= -I$(SRC_DIR)
 
-# Include the testbench sources:
+DECODER_TEST ?= no
+
+ifeq ($(DECODER_TEST),yes)
+
+# Decoder unit tests
+VERILOG_SOURCES += $(PWD)/tb_decode.sv
+TOPLEVEL = tb_decode
+MODULE = test_decode
+SIM_BUILD = sim_build/decode
+
+else
+
+# Full TinyTracer integration tests
 VERILOG_SOURCES += $(PWD)/tb.v
 TOPLEVEL = tb
+MODULE = test
 
-# MODULE is the basename of the Python test file
-MODULE = test,test_decode
+endif
 
 ifeq ($(MAKECMDGOALS),clean)
 # `make clean` must not need a simulator: the gate-level CI job runs it without
