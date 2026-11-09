@@ -307,3 +307,156 @@ async def test_random_operations_against_model(dut):
     for a in pool:
         assert env.mem[a] == model[a], f"SRAM model mismatch at addr {a}"
  
+
+INTERNAL_SEL = "sel"
+INTERNAL_REQ_VALID = "req_valid"
+ 
+
+TRUTH_TABLE = [
+    (0, 0, 0, 0),
+    (0, 1, 1, 1),
+    (1, 0, 0, 1),
+    (1, 1, 0, 0),
+]
+ 
+
+WR_ADDR, WR_DATA = 0x20, 0xA5A5
+RD_ADDR, RD_DATA = 0x10, 0x1234
+ 
+ 
+def find_signal(dut, path):
+    """Resolve a dotted path such as 'dut.sel' from the toplevel; None if missing."""
+    if path is None:
+        return None
+    obj = dut
+    try:
+        for part in path.split("."):
+            obj = getattr(obj, part)
+        return obj
+    except AttributeError:
+        return None
+ 
+ 
+def read_int(handle):
+    try:
+        return int(handle.value)
+    except ValueError:
+        return None  # X or Z
+ 
+ 
+async def drive_combo(env, io, rtu, sel_h, req_h, cycles=10):
+    """
+    Assert the requested combination of valids at the same time, hold each one
+    until its own ready is seen (or for `cycles` cycles if it never is), and
+    record what the controller did.
+    Returns (sel_seen, req_valid_seen, ready_seen_in_conflict, sram_writes, responses).
+    """
+    w0, r0 = len(env.sram_writes), len(env.resp)
+    env.mem[RD_ADDR] = RD_DATA
+ 
+    env.set("wr_wen", 1)
+    env.set("wr_addr", WR_ADDR)
+    env.set("wr_data", WR_DATA)
+    env.set("rd_addr", RD_ADDR)
+    env.set("wr_valid", io)
+    env.set("rd_valid", rtu)
+ 
+    io_active, rtu_active = io, rtu
+    sel_seen, req_seen = set(), set()
+    ready_seen = False
+ 
+    for _ in range(cycles):
+        await RisingEdge(env.h("clk"))
+ 
+        # Sample internal signals only while the original combination is still asserted
+        if (io_active, rtu_active) == (io, rtu):
+            if sel_h is not None:
+                sel_seen.add(read_int(sel_h))
+            if req_h is not None:
+                req_seen.add(read_int(req_h))
+ 
+        io_acc = bool(io_active and env.get("wr_ready"))
+        rtu_acc = bool(rtu_active and env.get("rd_ready"))
+        if io and rtu and (io_acc or rtu_acc):
+            ready_seen = True
+ 
+        await Timer(1, "ns")
+        if io_acc:
+            env.set("wr_valid", 0)
+            io_active = 0
+        if rtu_acc:
+            env.set("rd_valid", 0)
+            rtu_active = 0
+ 
+    env.set("wr_valid", 0)
+    env.set("rd_valid", 0)
+    await idle(env, 8)  # let any response arrive
+    return sel_seen, req_seen, ready_seen, env.sram_writes[w0:], env.resp[r0:]
+ 
+ 
+@cocotb.test()
+async def test_truth_table_requests(dut):
+    """
+    Drive every combination of io / rtu requests from the truth table, and
+    check the controller services (or ignores) them exactly as the table says.
+    Combinations are run in a mixed order so transitions between rows are
+    exercised too, not just each row from idle.
+    """
+    env = await init(dut)
+ 
+    sel_h = find_signal(dut, INTERNAL_SEL)
+    req_h = find_signal(dut, INTERNAL_REQ_VALID)
+    if sel_h is None or req_h is None:
+        dut._log.warning(
+            "Internal sel/req_valid not visible to cocotb: checking behaviour at the "
+            "ports only. Set INTERNAL_SEL / INTERNAL_REQ_VALID to enable direct checks."
+        )
+ 
+    # every row, then transitions between rows
+    order = [0, 1, 2, 3, 0, 3, 1, 2, 3, 2, 1, 0]
+ 
+    for step, idx in enumerate(order):
+        io, rtu, exp_sel, exp_req = TRUTH_TABLE[idx]
+        label = f"step {step}: io_valid={io} rtu_valid={rtu}"
+ 
+        sel_seen, req_seen, ready_seen, writes, resps = await drive_combo(
+            env, io, rtu, sel_h, req_h
+        )
+        dut._log.info(f"{label} -> writes={len(writes)} responses={len(resps)}")
+ 
+        # 1. direct check of the internal signals (when visible)
+        if sel_h is not None:
+            assert sel_seen == {exp_sel}, f"{label}: sel saw {sel_seen}, expected {{{exp_sel}}}"
+        if req_h is not None:
+            assert req_seen == {exp_req}, (
+                f"{label}: req_valid saw {req_seen}, expected {{{exp_req}}}"
+            )
+ 
+        # 2. behaviour at the ports
+        if (io, rtu) == (0, 1):          # RTU read serviced
+            assert writes == [], f"{label}: a read must not write the SRAM: {writes}"
+            assert len(resps) == 1, f"{label}: expected exactly 1 response, got {len(resps)}"
+            assert resps[0][1] == RD_DATA, (
+                f"{label}: read returned 0x{resps[0][1]:04X}, expected 0x{RD_DATA:04X}"
+            )
+        elif (io, rtu) == (1, 0):        # I/O write serviced
+            assert len(writes) == 1, f"{label}: expected exactly 1 SRAM write, got {writes}"
+            assert writes[0][1:] == (WR_ADDR, WR_DATA), (
+                f"{label}: SRAM saw {writes[0][1:]}, expected {(WR_ADDR, WR_DATA)}"
+            )
+            assert resps == [], f"{label}: a write must not produce a response: {resps}"
+        else:                            # (0,0) idle or (1,1) conflict: nothing serviced
+            assert writes == [], f"{label}: nothing should reach the SRAM: {writes}"
+            assert resps == [], f"{label}: no response expected: {resps}"
+ 
+        if (io, rtu) == (1, 1) and ready_seen:
+            dut._log.warning(
+                f"{label}: ready was high during the conflict, so a request may be "
+                "accepted by the handshake yet dropped (req_valid=0). Ask the design "
+                "owner whether that is intended."
+            )
+ 
+    # the controller must still work normally after all that
+    await io_write(env, 0x33, 0xFACE)
+    assert await rtu_read(env, 0x33) == 0xFACE
+ 
