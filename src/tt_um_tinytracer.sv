@@ -19,7 +19,24 @@ module tt_um_tinytracer (
     input  wire       rst_n     // reset_n - low to reset
 );
 
-  ///////////////////////////
+// Change to only test RNG unit
+    logic [15:0] rand_num;
+
+    rng u_rng (
+        .clk      (clk),
+        .rst_n    (rst_n),
+        .req      (ui_in[0]),
+        .rand_num (rand_num)
+    );
+
+    assign uo_out  = rand_num[7:0];
+    assign uio_out = rand_num[15:8];
+    assign uio_oe  = 8'hFF;
+
+    wire _unused = &{ena, ui_in[7:1], uio_in, 1'b0};
+
+
+/*  ///////////////////////////
   //  Top-Level Interfaces //
   ///////////////////////////
 
@@ -112,5 +129,5 @@ module tt_um_tinytracer (
 
   // List all unused inputs to prevent warnings
   wire _unused = &{ena, ui_in[7:4], ui_in[2:0], uio_in, 1'b0};
-
+*/
 endmodule
