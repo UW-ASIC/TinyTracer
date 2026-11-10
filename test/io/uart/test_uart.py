@@ -1,7 +1,7 @@
 import random
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles, RisingEdge, Timer, FallingEdge
+from cocotb.triggers import ClockCycles, RisingEdge, FallingEdge, Timer, FallingEdge
 from cocotb.utils import get_sim_time
 
 CLK_NS = 40
@@ -229,3 +229,145 @@ async def test_tx_bit_timing(dut):
 
     assert abs(duration - BIT_NS) < 1, (f"Stop bit lasted {duration} ns; expected {BIT_NS} ns")
     await sender
+
+
+@cocotb.test()
+async def test_rx_start_phase(dut):
+    """Checking that bytes arrive correctly at different start times relative to clkq - so receiving works even if host/chip clocks aren't aligned"""
+    await setup(dut)
+    got = []
+    expected = []
+    cocotb.start_soon(collect_bytes(dut, got))
+
+    sample_ns = CLKQ_DIV * CLK_NS
+    # sweep start timing across one clkq period
+    for phase_ns in range(1, sample_ns, CLK_NS // 2):
+        # offset the start from a sampling edge
+        await RisingEdge(dut.clkq)
+        await Timer(phase_ns, "ns")
+        # cycle through the edge patterns
+        byte = EDGE_PATTERNS[len(expected) % len(EDGE_PATTERNS)]
+        await send_byte(dut, byte)
+        await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+        expected.append(byte)
+        # check for missing or extra bytes
+        assert got == expected, f"start offset {phase_ns} ns: expected {expected}, got {got}"
+
+
+@cocotb.test()
+async def test_rx_bit_jitter(dut):
+    """Checking that bytes decode correctly when individual bits are shorter or longer."""
+    await setup(dut)
+    got = []
+    expected = []
+    cocotb.start_soon(collect_bytes(dut, got))
+
+    # short and long bits cancel out
+    jitter_ticks = [1, -1, 2, -2, -1, 1, -2, 2, 0, 0]
+    for byte in EDGE_PATTERNS:
+        # frame the byte starting with lsb
+        bits = [0] + [(byte >> i) & 1 for i in range(8)] + [1]
+        for bit, jitter in zip(bits, jitter_ticks):
+            dut.TT_RX.value = bit
+            # vary each bit by up to two clkq ticks
+            await Timer(BIT_NS + jitter * CLKQ_DIV * CLK_NS, "ns")
+        dut.TT_RX.value = 1
+        await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+        expected.append(byte)
+        # jitter must not change the decoded byte
+        assert got == expected, f"jittered byte {byte:#04x}: expected {expected}, got {got}"
+
+
+@cocotb.test()
+async def test_rx_baud_mismatch(dut):
+    """Send entire frames with bit lengths 2% shorter or longer. Checks the difference between host/chip baud rate can be tolerated."""
+    await setup(dut)
+    got = []
+    expected = []
+    cocotb.start_soon(collect_bytes(dut, got))
+
+    # try bit periods 2% shorter and longer
+    for period_ns in (BIT_NS - BIT_NS // 50, BIT_NS + BIT_NS // 50):
+        for byte in EDGE_PATTERNS:
+            # frame the byte with lsb first
+            bits = [0] + [(byte >> i) & 1 for i in range(8)] + [1]
+            for bit in bits:
+                dut.TT_RX.value = bit
+                # hold period for full frame
+                await Timer(period_ns, "ns")
+            dut.TT_RX.value = 1
+            await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+            expected.append(byte)
+            # check decoding despite accumulated timing drift
+            assert got == expected, (
+                f"bit period {period_ns} ns, byte {byte:#04x}: expected {expected}, got {got}"
+            )
+
+
+@cocotb.test()
+async def test_rx_single_sample_noise(dut):
+    """Check that one wrong sample per bit does not corrupt the received byte by flipping one of the 3 values and ensuring the other 2 outvote the noise."""
+    await setup(dut)
+    got = []
+    expected = []
+    cocotb.start_soon(collect_bytes(dut, got))
+
+    # corrupt each voting position in turn
+    for noisy_sample in (6, 8, 10):
+        for byte in (0x00, 0xFF, 0x55, 0xAA):
+            # leave time for CDC settling before sample 0
+            await FallingEdge(dut.clkq)
+            bits = [0] + [(byte >> i) & 1 for i in range(8)] + [1]
+            for bit in bits:
+                for sample in range(16):
+                    # flip one sample in every frame bit
+                    dut.TT_RX.value = bit ^ int(sample == noisy_sample)
+                    # set up the next sample on a falling edge
+                    await FallingEdge(dut.clkq)
+            dut.TT_RX.value = 1
+            await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+            expected.append(byte)
+            # the other two votes should preserve the correct byte
+            assert got == expected, (
+                f"noise at sample {noisy_sample}, byte {byte:#04x}: "
+                f"expected {expected}, got {got}"
+            )
+
+
+@cocotb.test()
+async def test_rx_two_sample_majority(dut):
+    """
+    Check that any two correct votes among samples 6, 8, and 10 win.
+    
+    Tries every pair among 6,8,10 making only 2 of those 3 positions set to the "expected" value.
+    It's not meant to be a realistic scenario (if all 14 bits were the opposite, we would probably want the other value), but confirms that the correct samples determine the result.
+    """
+    await setup(dut)
+    got = []
+    expected = []
+    cocotb.start_soon(collect_bytes(dut, got))
+
+    # try every pair of correct votes
+    for correct_samples in ((6, 8), (6, 10), (8, 10)):
+        for byte in (0x00, 0xFF, 0x55, 0xAA):
+            await FallingEdge(dut.clkq)
+            dut.TT_RX.value = 0
+            # count start edges to avoid a timer/edge race
+            for _ in range(16):
+                await FallingEdge(dut.clkq)
+            for bit_index in range(8):
+                bit = (byte >> bit_index) & 1
+                for sample in range(16):
+                    # invert every sample outside the selected pair
+                    dut.TT_RX.value = bit if sample in correct_samples else bit ^ 1
+                    await FallingEdge(dut.clkq)
+            # finish with a clean stop bit
+            dut.TT_RX.value = 1
+            await Timer(BIT_NS, "ns")
+            await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+            expected.append(byte)
+            # two correct votes must determine the byte
+            assert got == expected, (
+                f"correct samples {correct_samples}, byte {byte:#04x}: "
+                f"expected {expected}, got {got}"
+            )
