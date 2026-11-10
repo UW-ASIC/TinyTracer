@@ -23,6 +23,16 @@ module tt_um_tinytracer (
   //  Top-Level Interfaces //
   ///////////////////////////
 
+  logic [tinytracer_pkg::WLEN-1:0] rand_num;
+
+  rng u_rng (
+    .clk        (clk),
+    .rst_n      (rst_n),
+    .req        (ui_in[0]),
+    .rand_num   (rand_num)
+  );
+
+  /*
   render_if                     render_cmd (); // I/O -> RTU: render strobe, image size
   sram_wr_if                    sram_wr ();    // I/O -> SRAM controller: scene writes
   sram_rd_if                    sram_rd ();    // RTU <-> SRAM controller: scene reads
@@ -98,7 +108,7 @@ module tt_um_tinytracer (
       .sample   (sample),
       .spp_log2 (spp_log2),
       .pixel    (pixel)
-  );
+  );*/
 
   ////////////
   //  Pins  //
@@ -106,11 +116,11 @@ module tt_um_tinytracer (
 
   // ui_in[3] = uart_rx, uo_out[4] = uart_tx (info.yaml). The bidirectional
   // pins are unused inputs.
-  assign uo_out  = {3'b000, uart_tx, 4'b0000};
-  assign uio_out = 8'h00;
-  assign uio_oe  = 8'h00;
+  assign uo_out  = rand_num[7:0];  // {3'b000, uart_tx, 4'b0000};
+  assign uio_out = rand_num[15:8]; // 8'h00;
+  assign uio_oe  = 8'hFF; // 8'h00;
 
   // List all unused inputs to prevent warnings
-  wire _unused = &{ena, ui_in[7:4], ui_in[2:0], uio_in, 1'b0};
+  wire _unused = &{ena, ui_in[7:1], uio_in, 1'b0}; // &{ena, ui_in[7:4], ui_in[2:0], uio_in, 1'b0};
 
 endmodule

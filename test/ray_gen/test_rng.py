@@ -140,7 +140,7 @@ async def test_random_enough(dut):
     # (1,048,560) / (2 ^ 20) is about 1
     # A count of 1 is the cutoff: longer streaks are expected to appear less than once, shorter ones more than once.
 
-    # Test 8: Reset mid-run returns the LSFR to 1
+    # Test 8: Reset mid-run returns the LFSR to 1
     dut._log.info("Testing reset mid-run...")
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 2)
