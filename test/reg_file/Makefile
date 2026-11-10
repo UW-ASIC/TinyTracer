@@ -7,11 +7,6 @@ SIM ?= verilator
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../../src
 
-# Load variant under test: multi (default, 2 words over 3 cycles) or single
-# (all six words in one cycle). Use: make REG_FILE_LOAD=single
-REG_FILE_LOAD ?= multi
-export REG_FILE_LOAD
-
 # tinytracer_pkg.sv must come first: reg_file uses it.
 VERILOG_SOURCES = $(SRC_DIR)/tinytracer_pkg.sv $(SRC_DIR)/exu/reg_file.sv
 TOPLEVEL = reg_file
