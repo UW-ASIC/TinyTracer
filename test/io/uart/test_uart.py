@@ -371,3 +371,111 @@ async def test_rx_two_sample_majority(dut):
                 f"correct samples {correct_samples}, byte {byte:#04x}: "
                 f"expected {expected}, got {got}"
             )
+
+# helpers for clock speed and jitter testing
+clkq_periods = [CLKQ_DIV]
+ 
+ 
+async def make_variable_clkq(dut):
+    i = 0
+    while True:
+        period = clkq_periods[i % len(clkq_periods)]
+        dut.clkq.value = 0
+        await ClockCycles(dut.clk, period // 2)
+        dut.clkq.value = 1
+        await ClockCycles(dut.clk, period - period // 2)
+        i += 1
+ 
+ 
+async def setup_variable_clkq(dut, periods):
+    clkq_periods[:] = periods
+    cocotb.start_soon(Clock(dut.clk, CLK_NS, "ns").start())
+    cocotb.start_soon(make_variable_clkq(dut))
+    dut.TT_RX.value = 1
+    dut.rx_ready.value = 1
+    dut.tx_valid.value = 0
+    dut.tx_data.value = 0
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 10)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, BIT_CYCLES)
+ 
+ 
+async def send_byte_timed(dut, byte, bit_ns=BIT_NS, jitter_ns=0):
+    bits = [0] + [(byte >> i) & 1 for i in range(8)] + [1]
+    edges = [0] + [i * bit_ns + random.uniform(-jitter_ns, jitter_ns) for i in range(1, 10)] + [10 * bit_ns]
+    for i, bit in enumerate(bits):
+        dut.TT_RX.value = bit
+        await Timer(round((edges[i + 1] - edges[i]) * 1000), "ps")
+    dut.TT_RX.value = 1
+ 
+ 
+# clock speed variation and jitter testing
+@cocotb.test()
+async def test_rx_slow_sender(dut):
+    await setup(dut)
+    got = []
+    cocotb.start_soon(collect_bytes(dut, got))
+    data = EDGE_PATTERNS + [random.randrange(256) for _ in range(24)]
+    for b in data:
+        await send_byte_timed(dut, b, bit_ns=BIT_NS * 1.02)
+    await ClockCycles(dut.clk, FRAME_CYCLES)
+    assert got == data, f"sent {data}, got {got}"
+ 
+ 
+@cocotb.test()
+async def test_rx_fast_sender(dut):
+    await setup(dut)
+    got = []
+    cocotb.start_soon(collect_bytes(dut, got))
+    data = EDGE_PATTERNS + [random.randrange(256) for _ in range(24)]
+    for b in data:
+        await send_byte_timed(dut, b, bit_ns=BIT_NS * 0.98)
+    await ClockCycles(dut.clk, FRAME_CYCLES)
+    assert got == data, f"sent {data}, got {got}"
+ 
+ 
+@cocotb.test()
+async def test_rx_jitter(dut):
+    await setup(dut)
+    got = []
+    cocotb.start_soon(collect_bytes(dut, got))
+    data = EDGE_PATTERNS + [random.randrange(256) for _ in range(24)]
+    for b in data:
+        await send_byte_timed(dut, b, jitter_ns=BIT_NS / 8)
+    await ClockCycles(dut.clk, FRAME_CYCLES)
+    assert got == data, f"sent {data}, got {got}"
+ 
+ 
+@cocotb.test()
+async def test_clkq_jitter(dut):
+    await setup_variable_clkq(dut, [CLKQ_DIV - 1, CLKQ_DIV + 1])
+    got = []
+    cocotb.start_soon(collect_bytes(dut, got))
+    for b in EDGE_PATTERNS:
+        await send_byte(dut, b)
+        await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+    assert got == EDGE_PATTERNS, f"RX: sent {EDGE_PATTERNS}, got {got}"
+ 
+    checker = cocotb.start_soon(check_tx_bytes(dut, EDGE_PATTERNS))
+    for b in EDGE_PATTERNS:
+        await submit_tx_byte(dut, b)
+    await checker
+ 
+ 
+@cocotb.test()
+async def test_tx_clkq_speed_variation(dut):
+    await setup_variable_clkq(dut, [CLKQ_DIV])
+    for period in (CLKQ_DIV - 1, CLKQ_DIV + 1):
+        clkq_periods[:] = [period]
+        await ClockCycles(dut.clk, 2 * BIT_CYCLES)
+        sender = cocotb.start_soon(submit_tx_byte(dut, 0x00))
+        await FallingEdge(dut.TT_TX)
+        start = get_sim_time(units="ns")
+        await RisingEdge(dut.TT_TX)
+        low_ns = get_sim_time(units="ns") - start
+        expected = 9 * 16 * period * CLK_NS
+        assert abs(low_ns - expected) <= period * CLK_NS, (
+            f"clkq every {period} clk: 0x00 frame low for {low_ns} ns, expected {expected} ns")
+        await sender
+        await RisingEdge(dut.tx_ready)
