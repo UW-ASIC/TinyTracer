@@ -1,6 +1,7 @@
 .DS_Store
 .idea
 *.vcd
+__pycache__/
 runs
 tt_submission
 src/user_config.json
@@ -9,6 +10,7 @@ test/sim_build
 test/__pycache__/
 test/results.xml
 test/gate_level_netlist.v
+test/shader_core/sim_build/
 site/
 tt/
 sim/tinytracer_sim
