@@ -64,7 +64,7 @@ Valid/ready stream carrying one RGB colour. Carries sample colours from the RTU 
 
 ## `macro_if`
 
-RTU to Execution Unit channel. The RTU sends a macro-op request from its request register and the EXU responds with a vector result. The EXU passes the channel through to the Decode Unit, so both use the `server` modport. See [Instruction Encoding](../encoding/instruction.md) for the macro-op format.
+RTU to Execution Unit channel. The RTU sends a macro-op request from its request register and the EXU responds with a vector result. The EXU passes the channel through to the Decode Unit, so both use the `server` modport. See [Instruction Encoding](../encoding/instruction.md) for the macro-op format and [Result Encoding](../encoding/instruction.md#result-encoding) for the result.
 
 ### Signals
 

@@ -31,7 +31,60 @@
   "//": "https://tinytapeout.com/faq/#how-can-i-map-an-additional-external-clock-to-one-of-the-gpios",
   "CLOCK_PORT": "clk",
 
-  "//": "Configuration docs: https://openlane.readthedocs.io/en/latest/reference/configuration.html",
+  "//": "Read the SystemVerilog with the slang frontend. LibreLane's default read",
+  "//": "(read_verilog -defer) cannot resolve the interfaces that rtu passes down to",
+  "//": "its sub-blocks: 'Could not find signal \\sh_req.resp_result in rtu'.",
+  "USE_SLANG": true,
+
+  "//": "Scene SRAM: IHP's RM_IHPSG13_1P_512x16_c2_bm_bist (236.80 x 191.34 um), from the PDK.",
+  "//": "Bottom-left corner of the core. Its signal pins are on its bottom edge, so FS",
+  "//": "turns them up towards the logic. The tile's I/O pins are on the top edge.",
+  "MACROS": {
+    "RM_IHPSG13_1P_512x16_c2_bm_bist": {
+      "instances": {
+        "u_scene_sram.u_sram": { "location": [3.36, 3.78], "orientation": "FS" }
+      },
+      "gds": ["pdk_dir::libs.ref/sg13cmos5l_sram/gds/RM_IHPSG13_1P_512x16_c2_bm_bist.gds"],
+      "lef": ["pdk_dir::libs.ref/sg13cmos5l_sram/lef/RM_IHPSG13_1P_512x16_c2_bm_bist.lef"],
+      "spice": ["pdk_dir::libs.ref/sg13cmos5l_sram/cdl/RM_IHPSG13_1P_512x16_c2_bm_bist.cdl"],
+      "lib": {
+        "nom_typ_1p20V_25C": ["pdk_dir::libs.ref/sg13cmos5l_sram/lib/RM_IHPSG13_1P_512x16_c2_bm_bist_typ_1p20V_25C.lib"],
+        "nom_fast_1p32V_m40C": ["pdk_dir::libs.ref/sg13cmos5l_sram/lib/RM_IHPSG13_1P_512x16_c2_bm_bist_fast_1p32V_m55C.lib"],
+        "nom_slow_1p08V_125C": ["pdk_dir::libs.ref/sg13cmos5l_sram/lib/RM_IHPSG13_1P_512x16_c2_bm_bist_slow_1p08V_125C.lib"]
+      }
+    }
+  },
+
+  "//": "VDD! (periphery) and VDDARRAY! (bit cells) on VPWR, VSS! on VGND.",
+  "PDN_MACRO_CONNECTIONS": [
+    "u_scene_sram.u_sram VPWR VGND VDD! VSS!",
+    "u_scene_sram.u_sram VPWR VGND VDDARRAY! VSS!"
+  ],
+
+  "//": "The tile's PDN is Metal4 stripes only, and the SRAM blocks Metal2-Metal4, so pdngen",
+  "//": "stops its stripes at the macro. pdn_cfg.tcl drops LibreLane's empty per-macro grid,",
+  "//": "and Project.ExtendPowerStripes (librelane_plugin_tinytracer_pdn.py, odb_stripes.py)",
+  "//": "redraws the stripes through the macro on its Metal4 supply columns.",
+  "PDN_CFG": "dir::pdn_cfg.tcl",
+  "meta": {
+    "flow": "Classic",
+    "substituting_steps": { "+OpenROAD.GeneratePDN": "Project.ExtendPowerStripes" }
+  },
+
+  "//": "GeneratePDN checks its grid before ExtendPowerStripes connects the SRAM, so its",
+  "//": "violation count always includes the unconnected SRAM. OpenROAD's check_power_grid",
+  "//": "passes for VPWR and VGND on the design ExtendPowerStripes writes.",
+  "ERROR_ON_PDN_VIOLATIONS": false,
+
+  "//": "Sign-off with the SRAM, as the other CMOS5L SRAM projects do. Magic DRC and its",
+  "//": "overlap check misread the SRAM's LEF obstructions (the precheck's KLayout DRC is",
+  "//": "the sign-off), and LVS treats the SRAM as a black box (its CDL is not LVS clean).",
+  "RUN_MAGIC_DRC": false,
+  "ERROR_ON_ILLEGAL_OVERLAPS": false,
+  "MAGIC_MACRO_STD_CELL_SOURCE": "PDK",
+  "MAGIC_EXT_ABSTRACT_CELLS": ["RM_IHPSG13_.*"],
+
+  "//": "Configuration docs: https://librelane.readthedocs.io/en/latest/reference/configuration.html",
 
   "//": "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
   "//": "!!! DO NOT CHANGE ANYTHING BELOW THIS POINT !!!",
@@ -58,14 +111,14 @@
   "FP_IO_HLENGTH": 2,
   "FP_IO_VLENGTH": 2,
 
-  "FP_PDN_VPITCH": 38.87,
+  "FP_PDN_VPITCH": 50.0,
+  "FP_PDN_VWIDTH": 2.1,
 
   "//": "Clock",
   "RUN_CTS": 1,
 
-  "//": "Don't use power rings or met5 layer",
+  "//": "Don't generate power rings",
   "FP_PDN_MULTILAYER": 0,
-  "RT_MAX_LAYER": "met4",
 
   "//": "MAGIC_DEF_LABELS may cause issues with LVS",
   "MAGIC_DEF_LABELS": 0,

@@ -8,7 +8,7 @@ description: "Top-level Tiny Tapeout module for TinyTracer, instantiating the SR
 
 This module instantiates the SRAM, SRAM controller, RTU, Execution Unit (EXU), Accumulator, and I/O Unit. The EXU in turn instantiates the Decode Unit, Register File, and FU Control Unit (see [`exu`](exu/exu.md)).
 
-TinyTracer targets the IHP sg13g2 process with a 25 MHz clock (40 ns). The scene SRAM has 512 words of 16 bits and is wrapped by [`scene_sram`](sram/scene_sram.md): IHP's ready-made `RM_IHPSG13_1P_512x16` macro fits it, but the CI flow still builds for sky130, so no macro is instantiated yet.
+TinyTracer targets the IHP SG13CMOS5L process (`ihp-sg13cmos5l`), which Tiny Tapeout's IHP shuttles use, with a 25 MHz clock (40 ns). The scene SRAM has 512 words of 16 bits and is wrapped by [`scene_sram`](sram/scene_sram.md): it is IHP's ready-made `RM_IHPSG13_1P_512x16_c2_bm_bist` macro in the bottom-left corner of the tile.
 
 ## Parameters
 
