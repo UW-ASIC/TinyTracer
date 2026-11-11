@@ -85,7 +85,8 @@ async def background(env):
             env.resp.append((now(), env.get("resp_data")))
  
         await Timer(1, "ns")
-        env.set("sram_dout", old)        # visible from the next cycle (1-cycle latency)
+        if not w:
+            env.set("sram_dout", old)       # visible from the next cycle (1-cycle latency)
  
  
 async def init(dut):
@@ -308,8 +309,8 @@ async def test_random_operations_against_model(dut):
         assert env.mem[a] == model[a], f"SRAM model mismatch at addr {a}"
  
 
-INTERNAL_SEL = "sel"
-INTERNAL_REQ_VALID = "req_valid"
+INTERNAL_SEL = "u_dut.sel"
+INTERNAL_REQ_VALID = "u_dut.req_valid"
  
 
 TRUTH_TABLE = [
