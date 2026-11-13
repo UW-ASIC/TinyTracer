@@ -54,6 +54,46 @@ $$
     * All other micro-ops ignore `FMT`
 * The colour multiplies of the Shader Core need shifts of 8 and 10, which one `FMT` bit cannot select. This is still open: either `FMT` grows to a 2-bit select of $\{7, 8, 10, 14\}$ (`MACRO_W` = 103 bits), or the Shader Core gets its own colour multiplier
 
+### Result Encoding
+
+The EXU returns the result of every macro-op on `macro.resp_result` (see [`macro_if`](../modules/tinytracer_if.md#macro_if)) as a 48-bit `vec3_t`, which is register file R0-R2 when the macro-op completes.
+
+| Field | w3 | w2 | w1 |
+|----|----|----|:----:|
+| Bit Width | 16 bits | 16 bits | 16 bits |
+| Bits | [47:32] | [31:16] | [15:0] |
+| Register | R2 | R1 | R0 |
+| `vec3_t` field | `z` | `y` | `x` |
+
+$$
+\mathbf{\vec{w}}=\begin{pmatrix}w_3 \\ w_2 \\ w_1 \end{pmatrix}
+$$
+
+* Only the elements listed in the Result column below are defined. Scalar results are in $w_1$ (`resp_result.x`)
+* For scalar macro-ops and `M_DOT`, $w_2$ and $w_3$ are not part of the result and the RTU ignores them. They hold whatever R1 and R2 were left with: $u_2$ and $u_3$ for a scalar macro-op, $u_2 v_2$ and $u_3 v_3$ for `M_DOT`
+* Compare results are the integer `16'h0001` if the compare is true and `16'h0000` if it is false, not 1.0 in POS or DIR. The RTU reads bit 0 as the compare flag
+* A result that does not fit in 16 bits clamps to `16'h7FFF` or `16'h8000` (see [Number Formats](number_format.md#combining-formats))
+* The number format of the result follows from the formats of the operands and `FMT`. Where the table gives one format for both operands, they must be in the same format
+
+| Macro-op | Result | `FMT` | Operand formats $\rightarrow$ result format |
+|----|----|:----:|----|
+| `M_ADD`, `M_SUB` | $w_1 = u_1 \pm v_1$ | ignored | same format on both sides $\rightarrow$ that format |
+| `M_EQ`, `M_NE`, `M_LT`, `M_GE` | $w_1$ = 1 or 0 | ignored | same format on both sides $\rightarrow$ integer |
+| `M_MUL` | $w_1 = u_1 v_1$ | 0 or 1 | POS $\times$ POS (`FMT` = 0) $\rightarrow$ POS, POS $\times$ DIR (`FMT` = 1) $\rightarrow$ POS, DIR $\times$ DIR (`FMT` = 1) $\rightarrow$ DIR |
+| `M_DIV` | $w_1 = u_1 \div v_1$ | ignored | POS $\div$ POS $\rightarrow$ DIR, POS $\div$ DIR $\rightarrow$ POS, DIR $\div$ DIR $\rightarrow$ DIR |
+| `M_SQRT` | $w_1 = \sqrt{u_1}$ | 0 or 1 | POS (`FMT` = 0) $\rightarrow$ POS, DIR (`FMT` = 1) $\rightarrow$ DIR |
+| `M_COS` | $w_1 = u_1 \cos v_1$ | ignored | $v_1$ in DIR (radians, $\lvert v_1 \rvert \le 1.743$) $\rightarrow$ format of $u_1$ |
+| `M_MAG` | $w_1 = \sqrt{u_1^2 + v_1^2}$ | ignored | same format on both sides $\rightarrow$ that format |
+| `M_VADD`, `M_VSUB` | $\vec{w} = \vec{u} \pm \vec{v}$ | ignored | same as `M_ADD` |
+| `M_SCAL_VEC` | $\vec{w} = u_1 \vec{v}$ | 0 or 1 | same as `M_MUL` |
+| `M_DOT` | $w_1 = \vec{u} \cdot \vec{v}$ | 0 or 1 | same as `M_MUL` |
+| `M_CROSS` | $\vec{w} = \vec{u} \times \vec{v}$ | 0 or 1 | same as `M_MUL` |
+| `M_NORM` | $\vec{w} = \vec{u} \div \lvert \vec{u} \rvert$ | 1 | $\vec{u}$ in DIR (after the [resize pre-shift](number_format.md#resize-pre-shift)) and $v_1$ = 1.0 (DIR) $\rightarrow$ DIR |
+| `M_SPHERE_NORM` | $\vec{w} = \vec{v} \div u_1$ | ignored | same as `M_DIV`; $\vec{v}$ and $u_1$ in POS give DIR |
+| `M_VMUL` | $w_i = u_i v_i$ | 0 or 1 | same as `M_MUL`; colours are still open (see above) |
+
+* DIR $\div$ POS is not supported: $(a \ll 14) \div b$ gives a value scaled by $2^{21}$, which is neither format. The RTU never issues it
+
 ## Micro-Operations
 
 ### Micro Opcodes
