@@ -264,6 +264,83 @@ async def test_invalid_start(dut):
 
 
 @cocotb.test()
+async def test_masked_bits(dut):
+    """parser uses only the intended bits of each high byte, upper bits must not leak in"""
+    dut._log.info("start masked bits test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    # the monitor that catches both outputs, sram for addr check, render for width check
+    seen = {
+        "sram": False, "addr": None, "data": None,
+        "render": False, "w": None, "h": None,
+    }
+
+    async def watch():
+        while True:                                 # infinite loop that checks both outputs on every clk edge
+            await RisingEdge(dut.clk)
+
+            if int(dut.sram_req_valid.value) == 1 and not seen["sram"]:
+                seen["sram"] = True
+                seen["addr"] = int(dut.sram_req_waddr.value)
+                seen["data"] = int(dut.sram_req_wdata.value)
+
+            if int(dut.render_strobe.value) == 1:  
+                seen["render"] = True
+                seen["w"] = int(dut.render_img_w.value)
+                seen["h"] = int(dut.render_img_h.value)
+
+    cocotb.start_soon(watch())
+
+    # width check
+    # the width high byte feeds only img_w[11:8] <= rx_byte_reg[3:0], so only the low nibble matters
+    # send 0xF3 (upper nibble is trash, low nibble 0x3 is real top bits)
+    # if parser used the wrong nibble then we'd get 0xFA5 instead of 0x3A5
+    dim_low = 0xA5                                  # full low byte
+    dim_high_byte = 0xF3                            # upper 0xF is garbage, low 0x3 is real top bits
+    expected_dim = 0x3A5                            # = {0x3, 0xA5}, not 0xFA5
+
+    await send_bytes(dut, [0x00, dim_low, dim_high_byte, dim_low, dim_high_byte])           # inject render msg
+    await ClockCycles(dut.clk, 5)
+
+    assert seen["render"], "render never pulsed"
+    assert seen["w"] == expected_dim, f"img_w used wrong bits: expected {expected_dim:#05x}, got {seen['w']:#05x}"
+    assert seen["h"] == expected_dim, f"img_h used wrong bits: expected {expected_dim:#05x}, got {seen['h']:#05x}"
+
+    # addr check
+    # the addr high byte feeds only addr[8] <= rx_byte_reg[0], so only bit 0 matters
+    # send 0xFE (bit 0 = 0, others 1). 
+    # if parser used any other bit, addr[8] would be 1, and get 0x1AA instead of 0x0AA
+    data = 0x1234                                   # arbitrary data
+    data_low = data & 0xFF                          # grabs lower 8 bits -> 0x34
+    data_high = (data >> 8) & 0xFF                  # shifts down and masks -> 0x12
+    addr_low = 0xAA                                 # full low byte
+    addr_high_byte = 0xFE                           # bit 0 = 0, upper bits all 1
+    expected_addr = 0x0AA                           # addr[8] must be 0, not 0x1AA
+
+    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high_byte])    # inject obj msg
+    await ClockCycles(dut.clk, 5)
+
+    assert seen["sram"], "object never wrote"
+    assert seen["data"] == data, f"wdata wrong: expected {data:#06x}, got {seen['data']:#06x}"
+    assert seen["addr"] == expected_addr, f"addr used wrong bits: expected {expected_addr:#05x}, got {seen['addr']:#05x}"
+
+    dut._log.info("masked bits test ok, only the intended bits of each high byte are used")
+
+
+@cocotb.test()
 async def test_b2b(dut):
     """sending back to back valid messages with no gap, both should land"""
     dut._log.info("start b2b message test")
