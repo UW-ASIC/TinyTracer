@@ -19,6 +19,23 @@ module pixel_tx (
     logic       esc_sent;   // DLE for the current colour byte already sent
     logic       busy;       // a pixel is held and being sent
 
+    // Current byte: PIXEL_START first, then the top byte of colour_reg.
+    logic [7:0] colour_byte;
+    logic [7:0] cur_byte;
+    logic       need_escape;
+
+    assign colour_byte = colour_reg[3*tinytracer_pkg::COLOUR_DEPTH-1 -: 8];
+    assign cur_byte    = (byte_idx == 2'd0) ? tinytracer_pkg::PIXEL_START : colour_byte;
+
+    // A colour byte of 0x00 or 0x03 would look like a start byte or DLE to
+    // the host, so DLE goes out first. 0x01 is not escaped in this direction.
+    assign need_escape = (byte_idx != 2'd0) && !esc_sent &&
+                         (colour_byte == tinytracer_pkg::PIXEL_START ||
+                          colour_byte == tinytracer_pkg::DLE);
+
+    assign tx.valid = busy;
+    assign tx.data  = need_escape ? tinytracer_pkg::DLE : cur_byte;
+
     // Take a new pixel only when the last one is fully sent.
     assign pixel.ready = !busy;
 
