@@ -77,6 +77,8 @@ module io (
         .q(clkq)
     );
 
+    pixel_tx u_pixel_tx (.clk(clk), .rst_n(rst_n), .pixel(pixel), .tx(tx_bytes));
+
 
     logic [1:0] clkdiv_ctl_meta;
     logic [1:0] clkdiv_ctl_sync; //clkdiv_ctl sets which divider setting to change
