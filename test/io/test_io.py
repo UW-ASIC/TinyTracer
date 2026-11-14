@@ -335,6 +335,57 @@ async def test_b2b(dut):
     dut._log.info("back to back messages test ok, parser recieved both")
 
 
+@cocotb.test()
+async def test_backpressure(dut):
+    """sram not ready: write req must be held until req_ready goes high"""
+    dut._log.info("start backpressure test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    # make sram busy -> it will not accept writes
+    dut.sram_req_ready_drv.value = 0
+
+    data = 0xCAFE                                   # arbitrary test value (16 bits)
+    addr = 0x0AA                                    # arbitrary test value (9 bits)
+    data_low = data & 0xFF                          # grabs lower 8 bits -> 0xFE
+    data_high = (data >> 8) & 0xFF                  # shifts down and masks lower 8 -> 0xCA
+    addr_low = addr & 0xFF                          # grabs lower 8 bits -> 0xAA
+    addr_high = (addr >> 8) & 0x01                  # only bit 0 -> 0x00
+
+    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])         # inject object msg
+    await ClockCycles(dut.clk, 5)                                                   # let the write request assert
+
+    # the write must be pending + held, since sram hasnt accepted it 
+    assert int(dut.sram_req_valid.value) == 1, "req_valid should be held high while sram not ready"
+    assert int(dut.sram_req_waddr.value) == addr, f"waddr wrong: expected {addr:#05x}, got {int(dut.sram_req_waddr.value):#05x}"
+    assert int(dut.sram_req_wdata.value) == data, f"wdata wrong: expected {data:#06x}, got {int(dut.sram_req_wdata.value):#06x}"
+
+    # wait even longer to see if it's still held (not wrongly cleared = write would be lost)
+    await ClockCycles(dut.clk, 10)
+    assert int(dut.sram_req_valid.value) == 1, "req_valid dropped while sram still not ready (write lost)"
+
+    # now let sram accept the write
+    dut.sram_req_ready_drv.value = 1
+    await ClockCycles(dut.clk, 5)
+
+    # the write should be accepted, req_valid clears
+    assert int(dut.sram_req_valid.value) == 0, "req_valid should clear after sram accepts write"
+
+    dut._log.info("backpressure test ok, write held while not ready, completed when ready")
+
+
 # async def test(dut):
 #     """confirm cocotb can reach the signals we gonna use"""
 

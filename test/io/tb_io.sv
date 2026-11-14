@@ -53,7 +53,9 @@ module tb_io ();
   wire [tinytracer_pkg::ADDR_WIDTH-1:0] sram_req_waddr = sram_bus.req_waddr;
   wire [tinytracer_pkg::DATA_WIDTH-1:0] sram_req_wdata = sram_bus.req_wdata;
 
-  // default ready = 1 so SRAM always accepts
-  assign sram_bus.req_ready = 1'b1;
+  // sram ready is drivable from the test. 
+  // backpressure test drives it low to hold a write, then high to release
+  logic sram_req_ready_drv = 1'b1;
+  assign sram_bus.req_ready = sram_req_ready_drv;
 
 endmodule
