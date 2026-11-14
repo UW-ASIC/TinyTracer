@@ -50,6 +50,22 @@ module pixel_tx (
             byte_idx   <= 2'd0;
             esc_sent   <= 1'b0;
             busy       <= 1'b1;
+        end else if (tx.valid && tx.ready) begin
+            if (need_escape) begin
+                // DLE went out; the colour byte itself goes next.
+                esc_sent <= 1'b1;
+            end else if (byte_idx == 2'd3) begin
+                // B went out: pixel done, ready for the next one.
+                busy     <= 1'b0;
+                esc_sent <= 1'b0;
+            end else begin
+                // Start byte, R or G went out: move to the next byte.
+                // After a colour byte, shift so the next one is on top.
+                byte_idx <= byte_idx + 2'd1;
+                esc_sent <= 1'b0;
+                if (byte_idx != 2'd0)
+                    colour_reg <= colour_reg << 8;
+            end
         end
     end
 
