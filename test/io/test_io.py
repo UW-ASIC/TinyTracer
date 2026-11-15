@@ -341,6 +341,98 @@ async def test_masked_bits(dut):
 
 
 @cocotb.test()
+async def test_render_extremes(dut):
+    """render with min (0x000) and max (0xFFF) dims, both must come thru exactly"""
+    dut._log.info("start render extremes test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    seen = {"w": None, "h": None}
+
+    async def monitor_render():
+        while True:                                 # infinite loop that checks if render_strobe is high on every clk edge 
+            await RisingEdge(dut.clk)
+
+            if int(dut.render_strobe.value) == 1:
+                seen["w"] = int(dut.render_img_w.value)                     # captures img_w value at moment of pulse
+                seen["h"] = int(dut.render_img_h.value)                     # captures img_h value at moment of pulse
+
+    cocotb.start_soon(monitor_render())
+
+    # loop over the boundary values
+    for dim in (0x000, 0xFFF):
+        dim_low = dim & 0xFF
+        dim_high = (dim >> 8) & 0xFF
+
+        await send_bytes(dut, [0x00, dim_low, dim_high, dim_low, dim_high])
+        await ClockCycles(dut.clk, 5)
+
+        assert seen["w"] == dim, f"img_w wrong at extreme: expected {dim:#05x}, got {seen['w']:#05x}"
+        assert seen["h"] == dim, f"img_h wrong at extreme: expected {dim:#05x}, got {seen['h']:#05x}"
+
+    dut._log.info("render extremes ok, 0x000 and 0xFFF both correct")
+
+
+@cocotb.test()
+async def test_object_extremes(dut):
+    """object with min (data 0x0000 / addr 0x000) and max (data 0xFFFF / addr 0x1FF), both exact"""
+    dut._log.info("start object extremes test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    seen = {"addr": None, "data": None}
+
+    async def monitor_sram():
+        while True:                                # infinite loop that checks if sram_req_valid is high on every clk edge
+            await RisingEdge(dut.clk)
+
+            if int(dut.sram_req_valid.value) == 1:
+                seen["addr"] = int(dut.sram_req_waddr.value)                     # captures addr value at moment of write
+                seen["data"] = int(dut.sram_req_wdata.value)                     # captures data value at moment of write
+    
+    cocotb.start_soon(monitor_sram())
+
+    # (data, addr) boundary pairs: all 0, then all 1 
+    for data, addr in ((0x0000, 0x000), (0xFFFF, 0x1FF)):
+        data_low = data & 0xFF
+        data_high = (data >> 8) & 0xFF
+        addr_low = addr & 0xFF
+        addr_high = (addr >> 8) & 0xFF
+
+        await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])
+        await ClockCycles(dut.clk, 5)
+
+        assert seen["data"] == data, f"wdata wrong at extreme: expected {data:#06x}, got {seen['data']:#06x}"
+        assert seen["addr"] == addr, f"waddr wrong at extreme: expected {addr:#05x}, got {seen['addr']:#05x}"
+
+    dut._log.info("object extremes ok, min and max data / addr both correct")
+
+
+@cocotb.test()
 async def test_b2b(dut):
     """sending back to back valid messages with no gap, both should land"""
     dut._log.info("start b2b message test")
