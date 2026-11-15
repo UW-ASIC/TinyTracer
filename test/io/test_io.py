@@ -195,6 +195,62 @@ async def test_dle(dut):
 
 
 @cocotb.test()
+async def test_dle_multiple(dut):
+    """two escaped 0x03 bytes in 1 msg, escape flag must reset between them and stya aligned"""
+    dut._log.info("start multi-DLE test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    data = 0xBE03                                   # data low = 0x03, needs esc
+    addr = 0x003                                    # addr low = 0x03, needs esc
+    data_low = data & 0xFF                          # 0x03
+    data_high = (data >> 8) & 0xFF                  # 0xBE
+    addr_low = addr & 0xFF                          # 0x03
+    addr_high = (addr >> 8) & 0x01                  # 0x00
+
+    DLE = 0x03
+
+    # escape both 0x03 payload bytes (data_low and addr_low)
+    stream = [0x01, DLE, data_low, data_high, DLE, addr_low, addr_high]
+
+    seen = {"wrote": False, "addr": None, "data": None, "wen": None}
+
+    async def monitor_sram():
+        while True:                                 # infinite loop that checks if sram_req_valid is high on every clk edge
+            await RisingEdge(dut.clk)
+
+            if int(dut.sram_req_valid.value) == 1 and not seen["wrote"]:
+                seen["wrote"] = True
+                seen["addr"] = int(dut.sram_req_waddr.value)                     # captures addr value at moment of write
+                seen["data"] = int(dut.sram_req_wdata.value)                     # captures data value at moment of write
+                seen["wen"] = int(dut.sram_req_wen.value)                        # captures wen (write enable) value at moment of write
+
+    cocotb.start_soon(monitor_sram())
+
+    await send_bytes(dut, stream)                    # inject the stream with 2 escaped bytes
+    await ClockCycles(dut.clk, 5)
+
+    assert seen["wrote"] == True, "no sram write after a double escaped message"
+    assert seen["data"] == data, f"wdata mismatch: expected {data:#06x}, got {seen['data']:#06x}"
+    assert seen["addr"] == addr, f"waddr mismatch: expected {addr:#05x}, got {seen['addr']:#05x}"
+    assert seen["wen"] == 1, f"wen mismatch: expected 1 (write), got {seen['wen']}"
+
+    dut._log.info(f"multi-DLE test ok, two escaped 0x03 bytes delivered, data={data:#06x}, addr={addr:#05x}")
+
+
+@cocotb.test()
 async def test_invalid_start(dut):
     """invalid start byte test (not 0x00, 0x01, or 0x03), parser should ignore and recovers after"""
     dut._log.info("start invalid start byte test")
