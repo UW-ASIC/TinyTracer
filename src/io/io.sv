@@ -138,6 +138,11 @@ module io (
     assign rx_capture = rx_bytes.valid && rx_bytes.ready;
     assign rx_pop = rx_byte_valid && (!sram_pending || sram.req_ready);
 
+    // Unescaped 00 or 01: always the start of a new message (see uart_frame.md).
+    logic rx_is_start;
+    assign rx_is_start = !rx_escape &&
+                         (rx_byte_reg == RENDER_START || rx_byte_reg == OBJ_START);
+
     // UART and parser now share clk. The UART clears valid on the same clock
     // edge where this register accepts the byte, so rx_seen is not needed.
     always_ff @(posedge clk or negedge rst_n) begin
@@ -190,6 +195,7 @@ module io (
             //the above code handles the escape character by setting rx_escape to 1 when DLE (03) is recieved, and then the next byte will be treated as payload, even if it is 00, 01, or 03, and then rx_escape will be set back to 0 after that byte is processed
             if (rx_pop &&
                 (rx_escape || rx_byte_reg != DLE) &&
+                !rx_is_start &&
                 rx_state != RX_IDLE) begin
 
                 case (rx_state)
@@ -272,8 +278,11 @@ module io (
                 endcase
             end
             //essentially this entire big if statement is the main parser logic, which configures the parser to specifically handle the render and object messages, and will store the data in the appropriate registers, and then will set the appropriate signals to tell the RTU or sram interface that there is a request pending, and then will go back to idle state
+            // A start byte is checked in every state, not only RX_IDLE. Payload
+            // 00/01 are always escaped, so an unescaped one mid-message means
+            // the host started over: drop the partial message, start the new one.
             if (rx_pop && !rx_escape && rx_byte_reg != DLE &&
-                rx_state == RX_IDLE) begin
+                (rx_is_start || rx_state == RX_IDLE)) begin
                     //saying that if the conditions of a byte being recieved, not being an escape character, and not being a DLE character, and the parser is in idle state, then it will check the first byte of the message to see if it is a render or object message, and then will set the appropriate state and index to start processing the message
                 case (rx_byte_reg)
                     RENDER_START: begin
