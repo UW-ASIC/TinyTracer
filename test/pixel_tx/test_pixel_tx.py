@@ -12,6 +12,23 @@ from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, FallingEdge, Timer
 
 CLK_PERIOD_NS = 40  # 25 MHz
+PIXEL_START = 0x00
+DLE = 0x03
+
+
+def encode_pixel(color):
+    """golden reference model, returns the expected byte frame for one 24 bit color"""
+    r = (color >> 16) & 0xFF
+    g = (color >> 8) & 0xFF
+    b = color & 0xFF
+
+    out = [PIXEL_START]                             # frame delimiter, never escaped
+
+    for byte in (r, g, b):
+        if byte == PIXEL_START or byte == DLE:      # 0x00 or 0x03, escape it
+            out.append(DLE)
+        out.append(byte)
+    return out
 
 
 async def reset(dut) -> None:
@@ -57,35 +74,85 @@ def hexs(bs: list[int]) -> str:
 
 @cocotb.test()
 async def test_escapes(dut):
-    # Example from the plan: (00, 80, 03) -> 00 03 00 80 03 03
+    """color bytes equal to 0x00 or 0x03 get a DLE in front, start byte and others dont"""
+    dut._log.info("start escapes test")
+
     await reset(dut)
+
+    # color 0x008003, R = 0x00, G = 0x80, B = 0x03, R escaped, G raw, b escaped
     sent = await send(dut, [0x008003])
-    assert sent == [0x00, 0x03, 0x00, 0x80, 0x03, 0x03], hexs(sent)
+    expected = [0x00, 0x03, 0x00, 0x80, 0x03, 0x03]             # start, DLE + R, G, DLE + B 
+
+    assert sent == expected, f"tx_byte mismatch: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info(f"escaped test ok: {hexs(sent)}")
 
 
 @cocotb.test()
 async def test_01_and_ff_not_escaped(dut):
+    """0x01 and 0xFF pass thru raw (only 0x00 and 0x03 are escaped in TX)"""
+    dut._log.info("start not escaped test")
+
     await reset(dut)
+
+    # colour 0x01FF01, R = 0x01, G = 0xFF, B = 0x01, none need escaping
     sent = await send(dut, [0x01FF01])
-    assert sent == [0x00, 0x01, 0xFF, 0x01], hexs(sent)
+    expected = [0x00, 0x01, 0xFF, 0x01]                         # start, R G B all raw
+
+    assert sent == expected, f"tx_byte mismatch: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info(f"not escaped test ok: {hexs(sent)}")
 
 
 @cocotb.test()
-async def test_back_to_back(dut):
-    # Second pixel waits (ready low) until the first is fully sent.
+async def test_b2b(dut):
+    """two pixels in a row both frame correctly (second holds until first is fully sent)"""
+    dut._log.info("start b2b test")
+    
     await reset(dut)
+
+    # p1, 0x112233 = {11, 22, 33} no escapes, p2, 0x030405 = {03, 04, 05} R escaped
     sent = await send(dut, [0x112233, 0x030405])
-    assert sent == [0x00, 0x11, 0x22, 0x33,
-                    0x00, 0x03, 0x03, 0x04, 0x05], hexs(sent)
+    expected = [0x00, 0x11, 0x22, 0x33,
+                0x00, 0x03, 0x03, 0x04, 0x05]
+
+    assert sent == expected, f"tx_byte mismatch: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info(f"b2b test ok, {hexs(sent)}")
 
 
 @cocotb.test()
 async def test_backpressure(dut):
-    # The real UART holds ready low for ~2000 clk per byte. With ready
-    # randomly low, no byte may be dropped, doubled or reordered.
+    """random tx_ready (UART busy): no byte dropped, doubled or reordered"""
+    dut._log.info("start backpressure test")
+
     random.seed(1)
     await reset(dut)
+
+    # 3 pixels, 0x030000 = {03, 00, 00} where all are escaped
     sent = await send(dut, [0x008003, 0x123456, 0x030000], ready_prob=0.3)
-    assert sent == [0x00, 0x03, 0x00, 0x80, 0x03, 0x03,
+    expected = [0x00, 0x03, 0x00, 0x80, 0x03, 0x03,
                     0x00, 0x12, 0x34, 0x56,
-                    0x00, 0x03, 0x03, 0x03, 0x00, 0x03, 0x00], hexs(sent)
+                    0x00, 0x03, 0x03, 0x03, 0x00, 0x03, 0x00]
+
+    assert sent == expected, f"tx_byte mismatch: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info(f"backpressure test ok, {len(sent)} bytes, none lost")
+
+
+@cocotb.test()
+async def test_random_ref(dut):
+    """fire many random pixels and check each frame against reference order"""
+    dut._log.info("start random reference test")
+
+    random.seed(2)
+    await reset(dut)
+
+    for _ in range(200):
+        color = random.randint(0, 0xFFFFFF)             # any 24 bit {r,g,b}
+        sent = await send(dut, [color])                 # 1 pixel so failure is isolated
+        expected = encode_pixel(color)
+
+        assert sent == expected, f"tx_byte mismatch for color {color:#08x}: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info("random reference test ok, 200 pixels all matched to model")
