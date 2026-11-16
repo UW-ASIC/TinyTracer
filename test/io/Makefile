@@ -17,6 +17,7 @@ VERILOG_SOURCES += $(SRC_DIR)/tinytracer_pkg.sv
 VERILOG_SOURCES += $(SRC_DIR)/tinytracer_if.sv
 VERILOG_SOURCES += $(SRC_DIR)/io/clkdiv.sv
 VERILOG_SOURCES += $(SRC_DIR)/io/uart.sv
+VERILOG_SOURCES += $(SRC_DIR)/io/pixel_tx.sv
 VERILOG_SOURCES += $(SRC_DIR)/io/io.sv
 VERILOG_SOURCES += $(PWD)/tb_io.sv
 
