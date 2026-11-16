@@ -36,11 +36,9 @@ module io (
 
     localparam logic [7:0] RENDER_START = 8'h00; //basically it will recognize messages as render messages if they start with first byte of 0
     localparam logic [7:0] OBJ_START = 8'h01; //same for all these
-    localparam logic [7:0] PIXEL_START = 8'h00;
     localparam logic [7:0] DLE = 8'h03; //basically every payload byte equal to 00, 01, or 03 will get a 03 added before it because it matches a starter
 
     localparam int DIM_W = tinytracer_pkg::DIM_WIDTH; //defined as 12
-    localparam int COLOUR_W = tinytracer_pkg::COLOUR_DEPTH; //8
     localparam int ADDR_W = tinytracer_pkg::ADDR_WIDTH; //9
     localparam int DATA_W = tinytracer_pkg::DATA_WIDTH; //16
 
@@ -76,6 +74,8 @@ module io (
         .c(c_reg),
         .q(clkq)
     );
+
+    pixel_tx u_pixel_tx (.clk(clk), .rst_n(rst_n), .pixel(pixel), .tx(tx_bytes));
 
 
     logic [1:0] clkdiv_ctl_meta;
