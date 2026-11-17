@@ -39,7 +39,7 @@ module pixel_tx (
     // Take a new pixel only when the last one is fully sent.
     assign pixel.ready = !busy;
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             colour_reg <= '0;
             byte_idx   <= 2'd0;
