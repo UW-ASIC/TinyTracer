@@ -213,7 +213,6 @@ module ray_generator (
   localparam int LOG_W = $clog2(WLEN);  // wide enough for L and 15 - L
 
   logic [LOG_W-1:0] img_log2;  // L, from the one set bit of img_w (1 .. PIX_W)
-  logic [WLEN-1:0]  px, py;    // pixel counters, zero-extended
   logic [WLEN-1:0]  xc, yc;    // x - W/2 and W/2 - 1 - y, sign-extended
   logic [LOG_W-1:0] jit_bits;  // 15 - L
   logic [WLEN-1:0]  jit_mask;  // the low 15 - L bits
@@ -225,16 +224,17 @@ module ray_generator (
       if (img_w[i]) img_log2 = LOG_W'(i);
   end
 
+  // pix_x and pix_y are read straight from the ports (held stable by the RTU):
+  // every bit starts as the sign bit, then the low L - 1 bits take the pixel bits
   always_comb begin
-    px = {{(WLEN-PIX_W){1'b0}}, pix_x};
-    py = {{(WLEN-PIX_W){1'b0}}, pix_y};
     for (int i = 0; i < WLEN; i++) begin
+      xc[i] = ~pix_x[img_log2 - 1];
+      yc[i] =  pix_y[img_log2 - 1];
+    end
+    for (int i = 0; i < PIX_W - 1; i++) begin
       if (i + 1 < img_log2) begin
-        xc[i] =  px[i];
-        yc[i] = ~py[i];
-      end else begin
-        xc[i] = ~px[img_log2 - 1];
-        yc[i] =  py[img_log2 - 1];
+        xc[i] =  pix_x[i];
+        yc[i] = ~pix_y[i];
       end
     end
   end
