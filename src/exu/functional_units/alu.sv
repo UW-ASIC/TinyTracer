@@ -11,6 +11,8 @@ module alu #(
     fu_if.server        fu       
 );
 
+import tinytracer_pkg::*;
+
 // local registers
 logic reg_req_valid;
 logic signed [WLEN-1:0] reg_req_op1;
@@ -48,7 +50,7 @@ always_comb begin
     sub_en = (reg_req_opcode != ALU_ADD) ? 1'b1 : 1'b0; 
 
     // toggle req_op2 bits for non-addition operations
-    t_reg_req_op2 = (sub_en) ? (~reg_req_op2 + WLEN_ONE) : reg_req_op2;
+    t_reg_req_op2 = (sub_en) ? (~reg_req_op2 + SIGNED_ONE) : reg_req_op2;
 
     // 16-bit adder
     raw_res = reg_req_op1 + t_reg_req_op2;
