@@ -60,7 +60,7 @@ always_comb begin
 
     case (reg_req_opcode)
         // 1) saturation logic
-        3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[WLEN-1]) ? MAX_CLAMP : MIN_CLAMP : raw_res;
+        3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[WLEN-1] ? MIN_CLAMP : MAX_CLAMP) : raw_res;
 
         // 2) compare logic
         3'b010 : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
