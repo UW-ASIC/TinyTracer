@@ -14,4 +14,5 @@ site/
 tt/
 sim/tinytracer_sim
 sim/*.bmp
-.venv-msys
+.venv-msys/
+.venv-wsl/
