@@ -63,15 +63,15 @@ always_comb begin
         3'b000, 3'b001: fu.resp_result = add_overflow ? (reg_req_op1[WLEN-1] ? MIN_CLAMP : MAX_CLAMP) : raw_res;
 
         // 2) compare logic
-        3'b010 : fu.resp_result = (raw_res) ? SIGNED_ONE : MIN_CLAMP;
-        3'b011 : fu.resp_result = (!raw_res) ? SIGNED_ONE : MIN_CLAMP ;
-        3'b100 : fu.resp_result = (add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : MIN_CLAMP;
-        3'b101 : fu.resp_result = !(add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : MIN_CLAMP;
+        3'b010 : fu.resp_result = (raw_res == 0) ? SIGNED_ONE : '0; // EQ
+        3'b011 : fu.resp_result = (raw_res != 0) ? SIGNED_ONE : '0 ; // NE
+        3'b100 : fu.resp_result = (add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : '0; // LT
+        3'b101 : fu.resp_result = !(add_overflow ^ raw_res[WLEN-1]) ? SIGNED_ONE : '0; // GE
         default : fu.resp_result = MIN_CLAMP;
     endcase
 end
 
-assign fu.req_ready = !rst_n;
+assign fu.req_ready = rst_n;
 assign fu.resp_done = reg_req_valid;
 
 endmodule
