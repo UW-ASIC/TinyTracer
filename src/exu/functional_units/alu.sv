@@ -47,16 +47,18 @@ end
 
 always_comb begin
     // compute sub_en
-    sub_en = (reg_req_opcode != ALU_ADD) ? 1'b1 : 1'b0; 
+    sub_en = (reg_req_opcode != ALU_ADD);
 
-    // toggle req_op2 bits for non-addition operations
-    t_reg_req_op2 = (sub_en) ? (~reg_req_op2 + SIGNED_ONE) : reg_req_op2;
+    // conditional bit inversion
+    t_reg_req_op2 = reg_req_op2 ^ {WLEN{sub_en}};
 
-    // 16-bit adder
-    raw_res = reg_req_op1 + t_reg_req_op2;
+    // shared adder with carry-in
+    raw_res = reg_req_op1 + t_reg_req_op2 + sub_en;
 
-    // detect overflow
-    add_overflow = (reg_req_op1[WLEN-1] == t_reg_req_op2[WLEN-1]) && (reg_req_op1[WLEN-1] != raw_res[WLEN-1]) ? 1'b1 : 1'b0;
+    // overflow detection
+    add_overflow =
+        (reg_req_op1[WLEN-1] == t_reg_req_op2[WLEN-1]) &&
+        (reg_req_op1[WLEN-1] != raw_res[WLEN-1]);
 
     case (reg_req_opcode)
         // 1) saturation logic
