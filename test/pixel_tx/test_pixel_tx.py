@@ -122,6 +122,24 @@ async def test_b2b(dut):
 
 
 @cocotb.test()
+async def test_idle(dut):
+    """no pixel offered, no bytes come out (tx stays idle)"""
+    dut._log.info("start idle test")
+
+    await reset(dut)
+
+    dut.pixel_valid.value = 0           # offer nothing
+    dut.tx_ready.value = 1              # UART ready
+
+    # watch for a while, tx_valid must never go high with nothing to send
+    for _ in range(20):
+        await FallingEdge(dut.clk)
+        assert dut.tx_valid.value == 0, "tx_valid went high with no pixel offered"
+
+    dut._log.info("idle test ok, no bytes emitted while idle")
+
+
+@cocotb.test()
 async def test_backpressure(dut):
     """random tx_ready (UART busy): no byte dropped, doubled or reordered"""
     dut._log.info("start backpressure test")
