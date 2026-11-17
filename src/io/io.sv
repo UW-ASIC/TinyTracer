@@ -84,7 +84,7 @@ module io (
     logic [7:0] clkdiv_data_sync; //clkdiv_data sets what value to write
 
     //next part is reset part of clocked block, clears registers used to synchronize clock-divider control signals
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin //if reset is low, clear all registers to default values
             clkdiv_ctl_meta  <= 2'b00;
             clkdiv_ctl_sync  <= 2'b00;
@@ -140,7 +140,7 @@ module io (
 
     // UART and parser now share clk. The UART clears valid on the same clock
     // edge where this register accepts the byte, so rx_seen is not needed.
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             rx_byte_reg   <= 8'h00;
             rx_byte_valid <= 1'b0;
@@ -159,7 +159,7 @@ module io (
     assign sram.req_waddr = sram_addr_reg; // basically just the address of sram, note that w stands for write, so this is the address that the sram will write to
     assign sram.req_wdata = sram_data_reg; // basically just the data of the sram
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk) begin
         if (!rst_n) begin
             rx_state        <= RX_IDLE;
             rx_escape       <= 1'b0;
