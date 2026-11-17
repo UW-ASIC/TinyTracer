@@ -74,3 +74,59 @@ async def test_equality(dut):
 async def test_ready(dut):
     await reset(dut)
     assert int(dut.req_ready.value) == 1
+
+@cocotb.test()
+async def test_comparison_eq_ne(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_EQ, 5, 5)
+    await check_operation(dut, ALU_EQ, 5, 3)
+    await check_operation(dut, ALU_NE, 5, 5)
+    await check_operation(dut, ALU_NE, 5, 3)
+
+@cocotb.test()
+async def test_comparison_lt_ge(dut):
+    await reset(dut)
+
+    # LT
+    await check_operation(dut, ALU_LT, 3, 5)
+    await check_operation(dut, ALU_LT, 5, 3)
+    await check_operation(dut, ALU_LT, 5, 5)
+
+    # GE
+    await check_operation(dut, ALU_GE, 3, 5)
+    await check_operation(dut, ALU_GE, 5, 3)
+    await check_operation(dut, ALU_GE, 5, 5)
+
+@cocotb.test()
+async def test_subtraction(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_SUB, 10, 5)
+    await check_operation(dut, ALU_SUB, 5, 10)
+    await check_operation(dut, ALU_SUB, -5, -10)
+    await check_operation(dut, ALU_SUB, 5, 5)
+
+
+@cocotb.test()
+async def test_sub_overflow(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_SUB, 32767, -1)
+    await check_operation(dut, ALU_SUB, -32768, 1)
+
+
+@cocotb.test()
+async def test_sub_min_operand(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_SUB, 0, -32768)
+
+
+@cocotb.test()
+async def test_signed_comparison_overflow(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_LT, 32767, -1)
+    await check_operation(dut, ALU_LT, -32768, 1)
+    await check_operation(dut, ALU_LT, 0, -32768)
