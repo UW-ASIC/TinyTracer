@@ -141,18 +141,39 @@ async def test_backpressure(dut):
 
 
 @cocotb.test()
+async def test_backpressure_random(dut):
+    """random colors and random tx_ready together: catches value/timing interaction bugs"""
+    dut._log.info("start random backpressure test")
+
+    random.seed(3)                                              # different seed than test_random_ref
+    await reset(dut)
+
+    for _ in range(200):
+        color = random.randint(0, 0xFFFFFF)
+        sent = await send(dut, [color], ready_prob=0.3)         # UART randomly not ready
+        expected = encode_pixel(color)
+
+        assert sent == expected, f"tx_byte mismatch for color {color:#08x}: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info("random backpressure test ok, 200 pixels under random ready")
+
+
+@cocotb.test()
 async def test_random_ref(dut):
-    """fire many random pixels and check each frame against reference order"""
+    """fire many random pixels as one continuous stream, framing stays aligned"""
     dut._log.info("start random reference test")
 
     random.seed(2)
     await reset(dut)
 
-    for _ in range(200):
-        color = random.randint(0, 0xFFFFFF)             # any 24 bit {r,g,b}
-        sent = await send(dut, [color])                 # 1 pixel so failure is isolated
-        expected = encode_pixel(color)
+    pixels = [random.randint(0, 0xFFFFFF) for _ in range(200)]
+    sent = await send(dut, pixels, max_cycles=4000)             # one batch, bump the cycle budget
+    expected = []
 
-        assert sent == expected, f"tx_byte mismatch for color {color:#08x}: expected [{hexs(expected)}], got [{hexs(sent)}]"
+    for color in pixels:
+        expected += encode_pixel(color)
+
+    assert sent == expected, f"tx_byte mismatch: expected [{hexs(expected)}], got [{hexs(sent)}]"
 
     dut._log.info("random reference test ok, 200 pixels all matched to model")
+
