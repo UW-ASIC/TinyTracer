@@ -332,7 +332,7 @@ module rtu (
       sh_new_sample <= 0;
     end else begin
       state <= next_state;
-      
+
       // sample initialization logic
       if (rg_start) begin
         rg_mode_prev <= rg_mode;
@@ -649,16 +649,46 @@ module rtu (
     endcase
   end
 
+  // resize logic
+  logic [3:0]  u_lead;  // index of the highest bit
+  tinytracer_pkg::vec3_t req_u_shifted;
+
+  // checks (with sign) whether one of the bits is 1. the highest one is assigned the index
+  always_comb begin
+    u_lead = 0;
+    for (int i = 0; i < 15; i++) begin
+      if ((req_u.x[i] ^ req_u.x[15]) | (req_u.y[i] ^ req_u.y[15]) | (req_u.z[i] ^ req_u.z[15])) begin
+        u_lead = i;
+      end
+    end
+  end
+
+  // logic behind bit 13: for DIR, bit 13 is weighted 0.5. Since the max val should be 0.5-1 in DIR, bit 14 should be 0
+  // this essentially shifts the x, y, z values such that the leading bit is 13
+  always_comb begin
+    req_u_shifted = req_u;
+    if (req_resize) begin
+      if (u_lead == 14) begin // top bit is 14
+        req_u_shifted.x = $signed(req_u.x) >>> 1;
+        req_u_shifted.y = $signed(req_u.y) >>> 1;
+        req_u_shifted.z = $signed(req_u.z) >>> 1;
+      end else begin         // shift left by 0 to 13
+        req_u_shifted.x = req_u.x <<< (13 - u_lead);
+        req_u_shifted.y = req_u.y <<< (13 - u_lead);
+        req_u_shifted.z = req_u.z <<< (13 - u_lead);
+      end
+    end
+  end
+
   // request register
   tinytracer_pkg::macro_word_t req_reg, req_next;
 
   always_comb begin
-    // ! TODO: code request resize here
     req_next = req_reg; // default to hold the same vals
     if (req_we[7]) req_next.fmt = req_fmt;
-    if (req_we[6]) req_next.u.z = req_u.z; // u3
-    if (req_we[5]) req_next.u.y = req_u.y; // u2
-    if (req_we[4]) req_next.u.x = req_u.x; // u1
+    if (req_we[6]) req_next.u.z = req_u_shifted.z; // u3 (shifted)
+    if (req_we[5]) req_next.u.y = req_u_shifted.y; // u2 (shifted)
+    if (req_we[4]) req_next.u.x = req_u_shifted.x; // u1 (shifted)
     if (req_we[3]) req_next.v.z = req_v.z; // v3
     if (req_we[2]) req_next.v.y = req_v.y; // v2
     if (req_we[1]) req_next.v.x = req_v.x; // v1
@@ -693,7 +723,5 @@ module rtu (
   assign sh_req.resp_valid = macro.resp_valid && sc_active;
   assign sh_req.resp_flag = macro.resp_result.x[0];
   assign sh_req.resp_result = macro.resp_result;
-
-  // ! TODO: code the size shift in request
 
 endmodule
