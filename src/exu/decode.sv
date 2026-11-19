@@ -185,7 +185,7 @@ module decode (
                 // SCALAR: issue single micro op to FU ctrl right away, micro opcode = MACROOP[3:0], result go to R0, u,v taken from micro.req_direct=1
                 // set next stateback to dispatch
 
-                macro.req_ready = macro_decode.vector ? 1'b1 : micro.req_ready;
+                macro.req_ready = (macro.req_valid && !macro_decode.vector) ? micro.req_ready : 1'b1;
 
                 if (!macro_decode.vector && macro.req_valid) begin // for scalar op, assign registers and break macro into micro ops
                     micro.req_valid = 1'b1;
