@@ -68,7 +68,7 @@ VERILOG_SOURCES += $(PWD)/tb.v
 TOPLEVEL = tb
 
 # MODULE is the basename of the Python test file
-MODULE = test
+MODULE = test,sram_control.test_sram_control
 
 ifeq ($(MAKECMDGOALS),clean)
 # `make clean` must not need a simulator: the gate-level CI job runs it without
