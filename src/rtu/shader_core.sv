@@ -138,7 +138,7 @@ assign glo1w_res          = {resp_result[40:33], resp_result[24:17], resp_result
 assign glo2w_res          = {resp_result[46:35], resp_result[30:19], resp_result[14:3]};
 
 // Miscellaneous next-state wires
-assign gnd_col            = checker_sel ? ground_a : ground_b;
+assign gnd_col            = checker_sel ? ground_b : ground_a;
 
 // State transition wires
 assign obj1_to_zro        = ~&sram_data[1:0] & last_bounce;
