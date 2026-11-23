@@ -567,6 +567,58 @@ async def test_b2b(dut):
 
 
 @cocotb.test()
+async def test_restart_midmsg(dut):
+    """an unescaped start byte mid-message abandons the partial and starts fresh"""
+    dut._log.info("start restart test")
+
+    # setup (clock + reset)
+    clock = Clock(dut.clk, 40, units="ns")          # starts clock (25MHz)
+    cocotb.start_soon(clock.start())
+
+    dut.rst_n.value = 0
+    dut.uart_rx.value = 1                           # we're not even using this, so keep idle at 1
+    dut.clkdiv_ctl.value = 0                        # clkdiv not even used, so keep floating at 0
+    dut.clkdiv_data.value = 0
+    dut.dut_io.rx_bytes.valid.value = 0
+    dut.dut_io.rx_bytes.data.value = 0
+    await ClockCycles(dut.clk, 5)                   # hold reset low for 5 cycles
+    dut.rst_n.value = 1                             # release reset
+    await ClockCycles(dut.clk, 2)                   # wait 2 cycles for things to settle, then parser live
+
+    seen = {"wrote": False, "addr": None, "data": None}
+
+    async def monitor_sram():
+        while True:
+            await RisingEdge(dut.clk)
+            if int(dut.sram_req_valid.value) == 1 and not seen["wrote"]:
+                seen["wrote"] = True
+                seen["addr"] = int(dut.sram_req_waddr.value)
+                seen["data"] = int(dut.sram_req_wdata.value)
+
+    cocotb.start_soon(monitor_sram())
+
+    # partial object: start + only 2 of 4 payload bytes (never completes -> no write)
+    await send_bytes(dut, [0x01, 0x34, 0x12])               # object start, data low, data high, then CUT
+
+    # new complete object
+    new_data = 0x5678
+    new_addr = 0x005
+    new_data_low = new_data & 0xFF
+    new_data_high = (new_data >> 8) & 0xFF
+    new_addr_low = new_addr & 0xFF
+    new_addr_high = (new_addr >> 8) & 0x01
+
+    await send_bytes(dut, frame_msg(0x01, [new_data_low, new_data_high, new_addr_low, new_addr_high]))
+    await ClockCycles(dut.clk, 5)
+
+    assert seen["wrote"], "no sram write, parser didn't restart into new object"
+    assert seen["data"] == new_data, f"wdata wrong after restart: expected {new_data:#06x}, got {seen['data']:#06x}"
+    assert seen["addr"] == new_addr, f"waddr wrong after restart: expected {new_addr:#05x}, got {seen['addr']:#05x}"
+
+    dut._log.info("restart test ok, partial message dropped, new one parsed clean")
+
+
+@cocotb.test()
 async def test_backpressure(dut):
     """sram not ready: write req must be held until req_ready goes high"""
     dut._log.info("start backpressure test")
