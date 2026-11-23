@@ -1,10 +1,3 @@
-# Cocotb tests for pixel_tx (src/io/pixel_tx.sv).
-# Run with `make` in this folder. pixel_tx_tb is the toplevel: it flattens the
-# colour_if / stream_if ports so we can drive them here.
-#
-# Each pixel should go out as 00, R, G, B, with 03 in front of any colour byte
-# that is 00 or 03. Expected bytes are written out by hand per test.
-
 import random
 
 import cocotb
@@ -195,3 +188,35 @@ async def test_random_ref(dut):
 
     dut._log.info("random reference test ok, 200 pixels all matched to model")
 
+
+@cocotb.test()
+async def test_reset_midframe(dut):
+    """reset midway through a pixel. module returns to idle and the next pixel sends cleanly"""
+    dut._log.info("start reset midframe test")
+
+    await reset(dut)
+
+    # start a pixel 
+    dut.pixel_colour.value = 0xAABBCC
+    dut.pixel_valid.value = 1
+    dut.tx_ready.value = 1
+    await ClockCycles(dut.clk, 3)
+    assert dut.tx_valid.value == 1, "setup: module should be midframe before the reset"
+
+    # yank reset midframe
+    dut.pixel_valid.value = 0
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 2)
+    dut.rst_n.value = 1
+    await FallingEdge(dut.clk)
+
+    # must be back to idle
+    dut.tx_ready.value = 1
+    assert dut.tx_valid.value == 0, "tx_valid still high after midframe reset"
+
+    # fresh pixel must be send as a full, correct frame
+    sent = await send(dut, [0x112233])
+    expected = encode_pixel(0x112233)
+    assert sent == expected, f"after reset: expected [{hexs(expected)}], got [{hexs(sent)}]"
+
+    dut._log.info("reset midframe test ok, recovered and sent a clean frame")
