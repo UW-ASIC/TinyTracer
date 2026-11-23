@@ -36,6 +36,21 @@ async def send_bytes(dut, values):
         await send_byte(dut, value)
 
 
+RENDER_START = 0x00
+OBJ_START = 0x01
+DLE = 0x03
+
+def frame_msg(start, payload):
+    """start byte raw, each payload byte escaped with a DLE if 0x00, 0x01, 0x03"""
+    out = [start]
+
+    for b in payload:
+        if b in (RENDER_START, OBJ_START, DLE):
+            out.append(DLE)
+        out.append(b)
+    return out
+
+
 @cocotb.test()
 async def test_render(dut):
     """render test, sends render command to parser, waits for render pulse, and checks w / h values"""
@@ -74,7 +89,7 @@ async def test_render(dut):
 
     cocotb.start_soon(monitor_render())
 
-    await send_bytes(dut, [0x00, dim_low, dim_high, dim_low, dim_high])     # inject render msg, 4 payload bytes (RENDER_START, width low / high, height low / high)
+    await send_bytes(dut, frame_msg(0x00, [dim_low, dim_high, dim_low, dim_high]))     # inject render msg, 4 payload bytes (RENDER_START, width low / high, height low / high)
     await ClockCycles(dut.clk, 5)                                           # wait a few cycles for things to settle
 
     # the check
@@ -126,7 +141,7 @@ async def test_object(dut):
 
     cocotb.start_soon(monitor_sram())
 
-    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])     # inject sram write msg, 4 payload bytes (SRAM_WRITE, data low / high, addr low / high)
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))     # inject sram write msg, 4 payload bytes (SRAM_WRITE, data low / high, addr low / high)
     await ClockCycles(dut.clk, 5)                                               # wait a few cycles for things to settle
 
     # the check
@@ -164,10 +179,6 @@ async def test_dle(dut):
     addr_low = addr & 0xFF                          # grabs lower 8 bits -> 0x55
     addr_high = (addr >> 8) & 0xFF                  # shifts down, masks lower 8 bits -> 0x00
 
-    DLE = 0x03                                      # DLE byte, next byte is literal
-
-    stream = [0x01, DLE, data_low, data_high, addr_low, addr_high]     # inject sram write msg, 4 payload bytes (SRAM_WRITE, data low / high, addr low / high), but addr low is escaped
-
     seen = {"wrote": False, "addr": None, "data": None, "wen": None}
 
     async def monitor_sram():
@@ -182,8 +193,8 @@ async def test_dle(dut):
     
     cocotb.start_soon(monitor_sram())
 
-    await send_bytes(dut, stream)                                               # inject the stream with the escaped byte
-    await ClockCycles(dut.clk, 5)                                               # wait a few cycles for things to settle
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))      # inject the stream with the escaped byte
+    await ClockCycles(dut.clk, 5)                                                           # wait a few cycles for things to settle
 
     # the check
     assert seen["wrote"] == True, "sram write not seen after object message"
@@ -220,11 +231,6 @@ async def test_dle_multiple(dut):
     addr_low = addr & 0xFF                          # 0x03
     addr_high = (addr >> 8) & 0x01                  # 0x00
 
-    DLE = 0x03
-
-    # escape both 0x03 payload bytes (data_low and addr_low)
-    stream = [0x01, DLE, data_low, data_high, DLE, addr_low, addr_high]
-
     seen = {"wrote": False, "addr": None, "data": None, "wen": None}
 
     async def monitor_sram():
@@ -239,7 +245,7 @@ async def test_dle_multiple(dut):
 
     cocotb.start_soon(monitor_sram())
 
-    await send_bytes(dut, stream)                    # inject the stream with 2 escaped bytes
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))                    # inject the stream with 2 escaped bytes
     await ClockCycles(dut.clk, 5)
 
     assert seen["wrote"] == True, "no sram write after a double escaped message"
@@ -308,7 +314,7 @@ async def test_invalid_start(dut):
     addr_low = addr & 0xFF                              # grabs lower 8 bits -> 0x07
     addr_high = (addr >> 8) & 0xFF                      # shifts down, masks lower 8 bits -> 0x00
 
-    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))
     await ClockCycles(dut.clk, 5)
 
     # valid msg still went thru correctly
@@ -368,7 +374,7 @@ async def test_masked_bits(dut):
     dim_high_byte = 0xF3                            # upper 0xF is garbage, low 0x3 is real top bits
     expected_dim = 0x3A5                            # = {0x3, 0xA5}, not 0xFA5
 
-    await send_bytes(dut, [0x00, dim_low, dim_high_byte, dim_low, dim_high_byte])           # inject render msg
+    await send_bytes(dut, frame_msg(0x00, [dim_low, dim_high_byte, dim_low, dim_high_byte]))           # inject render msg
     await ClockCycles(dut.clk, 5)
 
     assert seen["render"], "render never pulsed"
@@ -386,7 +392,7 @@ async def test_masked_bits(dut):
     addr_high_byte = 0xFE                           # bit 0 = 0, upper bits all 1
     expected_addr = 0x0AA                           # addr[8] must be 0, not 0x1AA
 
-    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high_byte])    # inject obj msg
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high_byte]))    # inject obj msg
     await ClockCycles(dut.clk, 5)
 
     assert seen["sram"], "object never wrote"
@@ -432,7 +438,7 @@ async def test_render_extremes(dut):
         dim_low = dim & 0xFF
         dim_high = (dim >> 8) & 0xFF
 
-        await send_bytes(dut, [0x00, dim_low, dim_high, dim_low, dim_high])
+        await send_bytes(dut, frame_msg(0x00, [dim_low, dim_high, dim_low, dim_high]))
         await ClockCycles(dut.clk, 5)
 
         assert seen["w"] == dim, f"img_w wrong at extreme: expected {dim:#05x}, got {seen['w']:#05x}"
@@ -479,7 +485,7 @@ async def test_object_extremes(dut):
         addr_low = addr & 0xFF
         addr_high = (addr >> 8) & 0xFF
 
-        await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])
+        await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))
         await ClockCycles(dut.clk, 5)
 
         assert seen["data"] == data, f"wdata wrong at extreme: expected {data:#06x}, got {seen['data']:#06x}"
@@ -537,14 +543,14 @@ async def test_b2b(dut):
     obj_addr_low = obj_addr & 0xFF                  # grabs lower 8 bits -> 0x11
     obj_addr_high = (obj_addr >> 8) & 0xFF          # shifts down, masks lower 8 bits -> 0x01
 
-    await send_bytes(dut, [0x01, obj_data_low, obj_data_high, obj_addr_low, obj_addr_high])     # inject object msg
+    await send_bytes(dut, frame_msg(0x01, [obj_data_low, obj_data_high, obj_addr_low, obj_addr_high]))    # inject object msg
 
     # 2nd msg (render), the b2b part w no gap
     dim = 0x2A5                                     # arbitrary test value (12 bits)
     dim_low = dim & 0xFF                            # grabs lower 8 bits -> 0xA5
     dim_high = (dim >> 8) & 0xFF                    # shift down, masks lower 8 bits -> 0x02
 
-    await send_bytes(dut, [0x00, dim_low, dim_high, dim_low, dim_high])     # inject render msg
+    await send_bytes(dut, frame_msg(0x00, [dim_low, dim_high, dim_low, dim_high]))     # inject render msg
     await ClockCycles(dut.clk, 5)                                           # wait a few cycles for things to settle
     
     # check 1st msg landed correctly
@@ -589,7 +595,7 @@ async def test_backpressure(dut):
     addr_low = addr & 0xFF                          # grabs lower 8 bits -> 0xAA
     addr_high = (addr >> 8) & 0x01                  # only bit 0 -> 0x00
 
-    await send_bytes(dut, [0x01, data_low, data_high, addr_low, addr_high])         # inject object msg
+    await send_bytes(dut, frame_msg(0x01, [data_low, data_high, addr_low, addr_high]))         # inject object msg
     await ClockCycles(dut.clk, 5)                                                   # let the write request assert
 
     # the write must be pending + held, since sram hasnt accepted it 
