@@ -7,13 +7,18 @@ SRAM writes.
 ## Scope
 
 These tests drive the parser's input stream (`rx_bytes`) **directly** instead of
-feeding serial bits through the UART. `uart_rx` is held idle (`1`) so the live 
+feeding serial bits through the UART. `uart_rx` is held idle (`1`) so the live
 UART stays parked and doesn't inject competing bytes.
 
 cocotb reaches the internal stream hierarchically (`dut.dut_io.rx_bytes.*`).
 The wrapper `tb_io.sv` breaks out the render and SRAM interface signals as
 top-level wires, and exposes `sram.req_ready` as a drivable signal
 (`sram_req_ready_drv`, defaults high) so the backpressure test can hold it low.
+
+messages are built with a `frame_msg()` helper that DLE-escapes payload bytes
+equal to `0x00`/`0x01`/`0x03`, matching the host encoding in `uart_frame.md`.
+The parser treats an unescaped `0x00`/`0x01` mid-message as a restart (drop the
+partial message, start fresh), which `test_restart_midmsg` covers.
 
 ## Tests
 
@@ -28,6 +33,7 @@ top-level wires, and exposes `sram.req_ready` as a drivable signal
 | `test_render_extremes` | dim min (0x000) and max (0xFFF) round-trip exactly |
 | `test_object_extremes` | data/addr min (0x0000/0x000) and max (0xFFFF/0x1FF) round-trip |
 | `test_b2b`             | back-to-back messages both parse (state resets between them) |
+| `test_restart_midmsg`  | an unescaped start byte mid-message abandons the partial and restarts cleanly |
 | `test_backpressure`    | a write is held while `sram.req_ready` is low, completes when raised |
 
 All verified non-vacuous (each fails when its expected value or stimulus is
