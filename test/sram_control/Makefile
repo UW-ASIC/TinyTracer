@@ -3,7 +3,9 @@ TOPLEVEL_LANG = verilog
 SRC_DIR = $(CURDIR)/../../src
 
 VERILOG_SOURCES += $(SRC_DIR)/tinytracer_pkg.sv
-VERILOG_SOURCES += $(SRC_DIR)/tinytracer_if.sv																
+VERILOG_SOURCES += $(SRC_DIR)/tinytracer_if.sv
+VERILOG_SOURCES += $(SRC_DIR)/sram_control.sv
+VERILOG_SOURCES += $(CURDIR)/tb_sram_control.sv																
 
 EXTRA_ARGS   += --timing --trace -Wno-fatal
 COMPILE_ARGS += -I$(SRC_DIR)
