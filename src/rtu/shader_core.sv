@@ -1,7 +1,7 @@
 // Shader Core: keeps the attenuation and makes the sample colour when the path ends.
 module shader_core #(
     parameter ADDR_WIDTH = 9,
-    parameter WLEN       = 16,   // now unused (resp_result width comes from macro_if::vec3_t)
+    parameter WLEN       = 16,
     parameter DATA_WIDTH = 16
 ) (
     input  logic                   clk,
@@ -36,10 +36,6 @@ module shader_core #(
 
 localparam SCRATCH_BITS     = 40;
 localparam STATE_BITS       = 5;
-localparam M_VMUL           = tinytracer_pkg::M_VMUL;
-localparam M_VADD           = tinytracer_pkg::M_VADD;
-localparam M_VSUB           = tinytracer_pkg::M_VSUB;
-localparam M_SCAL_VEC       = tinytracer_pkg::M_SCAL_VEC;
 
 typedef enum logic [STATE_BITS-1:0] {
     STATE_IDLE      ,
@@ -97,11 +93,10 @@ logic                     obj3_to_glo;
 
 // --- ASSUMPTIONS ---
 // -: SRAM read is not pipelined
-// -: sram.req_raddr is held steady from the request state through the *W wait state
-// -: sram.req_valid is never high on the same posedge where sram.resp_valid is sampled
-//    (request states and wait states are disjoint)
-// -: we cannot pulse done=1 on the same posedge where we sample start=1
-// +: no need to hold macro.req_op steady after the req handshake is done (posedge where ready=valid=1)
+// -: sram.req_raddr is held steady in both request and wait states
+// -: we cannot pulse sram.req_valid=1 on the same posedge where sram.resp_valid=1 is sampled
+// -: we cannot pulse done=1 on the same posedge where start=1 is sampled
+// +: no need to hold macro.req_op steady after req handshake is done (posedge where ready=valid=1)
 // +: macro-op req handshake must complete (posedge where ready=valid=1) before resp handshake
 
 // Macro-op operand wires
@@ -144,7 +139,7 @@ assign sram.req_raddr     = hit_addr + ((state_r == STATE_OBJ1 || state_r == STA
 assign sram.req_valid     = (state_r == STATE_OBJ1) ||
                             (state_r == STATE_OBJ2) ||
                             (state_r == STATE_OBJ3) ;
-assign sram.resp_ready    = 1'b1;   // the *W states always take the response
+assign sram.resp_ready    = '1;
 
 // Macro-op interface wires (client)
 assign macro.req_valid    = (state_r == STATE_SKY1) ||
@@ -154,10 +149,10 @@ assign macro.req_valid    = (state_r == STATE_SKY1) ||
                             (state_r == STATE_GLO1) ||
                             (state_r == STATE_GLO2) ||
                             (state_r == STATE_SUR)  ;
-assign macro.resp_ready   = 1'b1;
+assign macro.resp_ready   = '1;
 
 // Output wires
-assign done               = (state_r == STATE_ZERO)                                    ||
+assign done               = (state_r == STATE_ZERO)                                     ||
                             (state_r == STATE_OBJ1W && &{sram.resp_valid, obj1_to_zro}) ||
                             (state_r == STATE_SKY4W && macro.resp_valid)                ||
                             (state_r == STATE_GLO2W && macro.resp_valid)                ||
@@ -181,16 +176,14 @@ always_comb begin
 end
 
 always_comb begin
-  // sometimes, done=1 but scratch_r does not have the correct values yet
-  // TODO: If there is a global .sv file for opcode params, use those instead of localparams
   case (state_r)
-    STATE_SUR:    macro.req_op = {1'b0, col_p1_in,  att_in,     M_VMUL};
-    STATE_SKY1:   macro.req_op = {1'b0, sky_top_in, sky_hor_in, M_VSUB};
-    STATE_SKY2:   macro.req_op = {1'b1, dz_in,      sky_ext_in, M_SCAL_VEC};
-    STATE_SKY3:   macro.req_op = {1'b0, sky_hor_in, sky_ext_in, M_VADD};
-    STATE_SKY4:   macro.req_op = {1'b0, att_p1_in,  sky_ext_in, M_VMUL};
-    STATE_GLO1:   macro.req_op = {1'b0, tmp_p1,     col_in    , M_VMUL};
-    STATE_GLO2:   macro.req_op = {1'b0, str_in,     col_in    , M_VMUL};
+    STATE_SUR:    macro.req_op = {1'b0, col_p1_in,  att_in,     tinytracer_pkg::M_VMUL};
+    STATE_SKY1:   macro.req_op = {1'b0, sky_top_in, sky_hor_in, tinytracer_pkg::M_VSUB};
+    STATE_SKY2:   macro.req_op = {1'b1, dz_in,      sky_ext_in, tinytracer_pkg::M_SCAL_VEC};
+    STATE_SKY3:   macro.req_op = {1'b0, sky_hor_in, sky_ext_in, tinytracer_pkg::M_VADD};
+    STATE_SKY4:   macro.req_op = {1'b0, att_p1_in,  sky_ext_in, tinytracer_pkg::M_VMUL};
+    STATE_GLO1:   macro.req_op = {1'b0, tmp_p1,     col_in    , tinytracer_pkg::M_VMUL};
+    STATE_GLO2:   macro.req_op = {1'b0, str_in,     col_in    , tinytracer_pkg::M_VMUL};
     default:      macro.req_op = 'x;
   endcase
 end
@@ -211,7 +204,7 @@ always_ff @(posedge clk or negedge rst_n) begin
           default:;
         endcase
 
-      STATE_OBJ1:    if (sram.req_ready) state_r <= STATE_OBJ1W;
+      STATE_OBJ1:   if (sram.req_ready)   state_r <= STATE_OBJ1W;
       STATE_OBJ1W:
         case ({sram.resp_valid, obj1_to_zro})
           2'b11:    state_r <= STATE_IDLE;          // Zero sample
@@ -219,9 +212,9 @@ always_ff @(posedge clk or negedge rst_n) begin
           default:;
         endcase
 
-      STATE_OBJ2:    if (sram.req_ready) state_r <= STATE_OBJ2W;
-      STATE_OBJ2W:   if (sram.resp_valid) state_r <= STATE_OBJ3;
-      STATE_OBJ3:    if (sram.req_ready) state_r <= STATE_OBJ3W;
+      STATE_OBJ2:   if (sram.req_ready)   state_r <= STATE_OBJ2W;
+      STATE_OBJ2W:  if (sram.resp_valid)  state_r <= STATE_OBJ3;
+      STATE_OBJ3:   if (sram.req_ready)   state_r <= STATE_OBJ3W;
       STATE_OBJ3W:
         case ({sram.resp_valid, obj3_to_glo})
           2'b11:    state_r <= STATE_GLO1;          // Glow sample
@@ -258,10 +251,10 @@ always_ff @(posedge clk or negedge rst_n) begin
     case (state_r)
       STATE_IDLE:
         casez ({start, hit, hit_ground, last_bounce})
-          4'b10??:  scratch_r[36]     <= 1'b1;                // Sky sample
-          4'b110?:  scratch_r[36:0]   <= {1'b1, 36'b0};       // Zero sample / Glow sample / Object surface
-          4'b1111:  scratch_r[36:0]   <= {1'b1, 36'b0};       // Zero sample
-          4'b1110:  scratch_r[25:0]   <= {2'b00, gnd_col};    // Ground surface
+          4'b10??:  scratch_r[36]     <= 1'b1;                  // Sky sample
+          4'b110?:  scratch_r[36:0]   <= {1'b1, 36'b0};         // Zero sample / Glow sample / Object surface
+          4'b1111:  scratch_r[36:0]   <= {1'b1, 36'b0};         // Zero sample
+          4'b1110:  scratch_r[25:0]   <= {2'b00, gnd_col};      // Ground surface
           default:;
         endcase
 
