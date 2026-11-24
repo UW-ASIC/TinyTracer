@@ -16,3 +16,6 @@ tt/
 sim/tinytracer_sim
 sim/*.bmp
 .venv/
+test/*/sim_build/
+test/*/results.xml
+test/*/__pycache__/
