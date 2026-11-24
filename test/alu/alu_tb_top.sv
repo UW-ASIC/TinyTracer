@@ -1,17 +1,20 @@
 `timescale 1ns/1ps
 
-module alu_tb_top (
+module alu_tb_top #(
+    parameter WLEN=tinytracer_pkg::WLEN
+)
+(
     input logic clk,
     input logic rst_n,
 
     input logic req_valid,
-    input logic [15:0] req_op1,
-    input logic [15:0] req_op2,
+    input logic [WLEN-1:0] req_op1,
+    input logic [WLEN-1:0] req_op2,
     input logic [2:0] req_opcode,
 
     output logic req_ready,
     output logic resp_done,
-    output logic [15:0] resp_result
+    output logic [WLEN-1:0] resp_result
 );
 
     fu_if fu();
@@ -29,7 +32,7 @@ module alu_tb_top (
     assign resp_result = fu.resp_result;
 
     // Device under test
-    alu #(.WLEN(16)) dut (
+    alu #(.WLEN(WLEN)) dut (
         .clk(clk),
         .rst_n(rst_n),
         .fu(fu)

@@ -3,7 +3,7 @@ from cocotb.triggers import Timer
 
 from reference_models.alu import (
     alu_ref, ALU_ADD, ALU_SUB,
-    ALU_EQ, ALU_NE, ALU_LT, ALU_GE
+    ALU_EQ, ALU_NE, ALU_LT, ALU_GE, WLEN
 )
 
 
@@ -29,8 +29,8 @@ async def check_operation(dut, opcode, a, b):
     dut.clk.value = 0
     dut.req_valid.value = 1
     dut.req_opcode.value = opcode
-    dut.req_op1.value = a & 0xFFFF
-    dut.req_op2.value = b & 0xFFFF
+    dut.req_op1.value = a & ((1 << WLEN) - 1)
+    dut.req_op2.value = b & ((1 << WLEN) - 1)
 
     await Timer(5, units="ns")
 
@@ -51,30 +51,56 @@ async def check_operation(dut, opcode, a, b):
         f"Actual=0x{actual:04X}"
     )
 
+# Reset Test
+@cocotb.test()
+async def test_ready(dut):
+    await reset(dut)
+    assert int(dut.req_ready.value) == 1
 
+# Test Latency - Accepts new request every cycle
+@cocotb.test()
+async def test_latency(dut):
+    await reset(dut)
+
+    # Test that the ALU accepts a new request every cycle
+    for _ in range(10):
+        await check_operation(dut, ALU_ADD, 10, 20)
+
+
+# Addition Operation Unit Tests
 @cocotb.test()
 async def test_basic_add(dut):
     await reset(dut)
     await check_operation(dut, ALU_ADD, 10, 20)
 
 
+# Subtraction Operation Unit Tests
 @cocotb.test()
-async def test_positive_overflow(dut):
+async def test_subtraction(dut):
     await reset(dut)
-    await check_operation(dut, ALU_ADD, 32767, 1)
+
+    await check_operation(dut, ALU_SUB, 10, 5)
+    await check_operation(dut, ALU_SUB, 5, 10)
+    await check_operation(dut, ALU_SUB, -5, -10)
+    await check_operation(dut, ALU_SUB, 5, 5)
+
+# FAIL
+@cocotb.test()
+async def test_sub_min_operand(dut):
+    await reset(dut)
+
+    await check_operation(dut, ALU_SUB, 0, -32768)
 
 
+# Boolean Logic Unit Tests
+
+# FAIL
 @cocotb.test()
 async def test_equality(dut):
     await reset(dut)
     await check_operation(dut, ALU_EQ, 5, 5)
 
-
-@cocotb.test()
-async def test_ready(dut):
-    await reset(dut)
-    assert int(dut.req_ready.value) == 1
-
+# FAIL
 @cocotb.test()
 async def test_comparison_eq_ne(dut):
     await reset(dut)
@@ -98,15 +124,12 @@ async def test_comparison_lt_ge(dut):
     await check_operation(dut, ALU_GE, 5, 3)
     await check_operation(dut, ALU_GE, 5, 5)
 
+
+# Clamping Positive Overflow Unit Tests
 @cocotb.test()
-async def test_subtraction(dut):
+async def test_positive_overflow(dut):
     await reset(dut)
-
-    await check_operation(dut, ALU_SUB, 10, 5)
-    await check_operation(dut, ALU_SUB, 5, 10)
-    await check_operation(dut, ALU_SUB, -5, -10)
-    await check_operation(dut, ALU_SUB, 5, 5)
-
+    await check_operation(dut, ALU_ADD, 32767, 1)
 
 @cocotb.test()
 async def test_sub_overflow(dut):
@@ -114,14 +137,6 @@ async def test_sub_overflow(dut):
 
     await check_operation(dut, ALU_SUB, 32767, -1)
     await check_operation(dut, ALU_SUB, -32768, 1)
-
-
-@cocotb.test()
-async def test_sub_min_operand(dut):
-    await reset(dut)
-
-    await check_operation(dut, ALU_SUB, 0, -32768)
-
 
 @cocotb.test()
 async def test_signed_comparison_overflow(dut):
