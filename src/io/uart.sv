@@ -45,7 +45,7 @@ module uart (
 
     reg [9:0] tx_shift_reg;
 
-
+   
 
     localparam RX_IDLE  = 2'd0;  //  waiting for the RX line to go low
     localparam RX_START = 2'd1;  //  sampling the possible start bit at 6, 8, and 10
@@ -58,7 +58,7 @@ module uart (
     localparam TX_IDLE = 1'd0;  //  no byte is currently being transmitted
     localparam TX_SEND = 1'd1;  //  a framed byte is being serialized
 
-    assign TT_TX = (tx_state == TX_IDLE) ? 1'b1 : tx_shift_reg[0];
+    assign TT_TX = (tx_state == TX_IDLE) ? 1'b1 : tx_shift_reg[0]; 
     assign tx.ready = (tx_state == TX_IDLE);
 
     reg clkq_prev;
@@ -69,7 +69,7 @@ module uart (
     // ------------------------
 
     // we are assuming clk >>> clkq
-
+    
 
 
     always @(posedge clk) begin
@@ -123,7 +123,7 @@ module uart (
 
             // when both rx.valid and rx.ready, the data is recieved and we can clear the valid bit to begin the next cycle
             // we currently assume we cannot backpressure RX (data is recieved faster than other downstream elements can consume it)
-            // so we do not need logic for
+            // so we do not need logic for 
 
             if (rx.valid && rx.ready) begin
                 rx.valid <= 1'b0;
@@ -151,11 +151,11 @@ module uart (
 
                         if (rx_ctr == 4'd15) begin
                             rx_ctr <= 4'd0;
-
+                        
                             if (!rx_majority) begin
                                 rx_state <= RX_DATA; // majority 0 is a valid start
                                 rx_bit_ctr <= 3'd0;
-                            end
+                            end 
                             else begin
                                 rx_state <= RX_IDLE; // majority 1 is an invalid start
                             end
@@ -168,7 +168,7 @@ module uart (
 
                 RX_DATA: begin
                     if (clkq_tick) begin
-
+                        
                         case (rx_ctr)
                             4'd6: rx_sample_6 <= rx_sync;
                             4'd8: rx_sample_8 <= rx_sync;
@@ -189,8 +189,8 @@ module uart (
                         end
                         else begin
                             rx_ctr <= rx_ctr + 1'b1;
-                        end
-                    end
+                        end  
+                    end              
                 end
 
                 RX_STOP: begin
@@ -218,7 +218,7 @@ module uart (
                         else begin
                             rx_ctr <= rx_ctr + 1'b1;
                         end
-
+                    
                     end
                 end
                 // not required in final rtl, but recovers safely if state ever becomes invalid - same goes for the default case on TX, if we do need to reduce cell ct we can here
@@ -239,12 +239,12 @@ module uart (
             tx_bit_ctr   <= 4'd0;
             tx_shift_reg <= 10'h3FF; // keeps UART TX reg at idle high when reset
         end
-        else begin
+        else begin  
             case (tx_state)
                 TX_IDLE: begin
                     tx_ctr     <= 4'd0;
                     tx_bit_ctr <= 4'd0;
-
+                    
                     if (tx.valid && tx.ready) begin
 
                         // loading in the shift register as STOP, D7-D0, START) so that bit 0 is always the one we transmit as we shift the register
@@ -255,7 +255,7 @@ module uart (
 
                 TX_SEND: begin
                     if (clkq_tick) begin
-
+                        
                         // holding each bit for 16 cycles before shifting in the next bit since clkq is baud*16
                         if (tx_ctr == 4'd15) begin
                             tx_ctr <= 4'd0;
@@ -266,7 +266,7 @@ module uart (
                                 tx_state   <= TX_IDLE;
                                 tx_bit_ctr <= 4'd0;
                             end
-                            else begin
+                            else begin 
                                 tx_bit_ctr <= tx_bit_ctr + 1'b1;
                             end
                         end
