@@ -1862,3 +1862,379 @@ async def test_glass_total_internal_reflection(dut):
 async def test_glass_schlick_reflection(dut):
     await run_glass_case(dut, direction=(1, 0, 0), normal=(0, 0, 1), origin=(0, 0, 0), path="reflect")
 
+
+# Camera - Primary
+async def run_camera_case(dut, width, pixel_x, pixel_y, camera_height=0, test_handshake=False):
+    await setup(dut)
+    dut.mode.value = 0
+    dut.img_w.value = width
+    dut.pix_x.value = pixel_x
+    dut.pix_y.value = pixel_y
+    dut.cam_z.value = pack_vec3(0, 0, camera_height, POS_FRAC) & 0xFFFF
+
+    f = pack_vec3(0, 0, -1, DIR_FRAC)
+    r = pack_vec3(1, 0, 0, DIR_FRAC)
+    u = pack_vec3(0, 1, 0, DIR_FRAC)
+    dut.hdr_f.value = f
+    dut.hdr_r.value = r
+    dut.hdr_u.value = u
+
+    # Pixel bits have an exact location; only the lower jitter bits are random.
+    shift = 15 - (width.bit_length() - 1)
+    jitter_mask = (1 << shift) - 1
+    a_base = ((pixel_x - width // 2) << shift) & 0xFFFF
+    b_base = ((width // 2 - 1 - pixel_y) << shift) & 0xFFFF
+
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+
+    # a * R.
+    received_request = False
+    for i in range(MAX_CYCLES):
+        if int(dut.req_valid.value) == 1:
+            received_request = True
+            break
+        await tick(dut)
+    assert received_request, "Camera never requested a * R"
+    assert int(dut.req_op.value) == 14, "Expected M_SCAL_VEC for a * R"
+    assert int(dut.req_fmt.value) == 1, "Wrong format for a * R"
+    assert int(dut.req_we.value) == 0x9F, "Wrong request write mask for a * R"
+    assert int(dut.req_resize.value) == 0, "Unexpected resize for a * R"
+    assert int(dut.req_v.value) == r, "Wrong camera R vector"
+    a_word = int(dut.req_u.value) & 0xFFFF
+    assert a_word & (~jitter_mask & 0xFFFF) == a_base & (~jitter_mask & 0xFFFF), "Camera X pixel bits or jitter placement wrong"
+    assert int(dut.done.value) == 0, "Camera finished before a * R response"
+    if test_handshake:
+        await check_request_stall(dut)
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    if test_handshake:
+        await check_response_wait(dut)
+
+    a = float16(a_word)
+    ar = pack_vec3(a, 0, 0, DIR_FRAC)
+    dut.resp_result.value = ar
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.d_we.value) == 0 and int(dut.o_we.value) == 0, "Unexpected camera register write after a * R"
+    assert int(dut.scratch_we.value) == 0, "Camera unexpectedly wrote scratch"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    await Timer(1, unit="ns")
+
+    # F + aR, temporarily stored in ray_d for the later sum.
+    received_request = False
+    for i in range(MAX_CYCLES):
+        if int(dut.req_valid.value) == 1:
+            received_request = True
+            break
+        await tick(dut)
+    assert received_request, "Camera never requested F + aR"
+    assert int(dut.req_op.value) == 12, "Expected M_VADD for F + aR"
+    assert int(dut.req_fmt.value) == 1, "Wrong format for F + aR"
+    assert int(dut.req_we.value) == 0xFF, "Wrong request write mask for F + aR"
+    assert int(dut.req_u.value) == f, "Wrong F operand"
+    assert int(dut.req_v.value) == ar, "Wrong aR operand"
+    assert int(dut.req_resize.value) == 0, "Unexpected resize for F + aR"
+    if test_handshake:
+        await check_request_stall(dut)
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    if test_handshake:
+        await check_response_wait(dut)
+
+    far = pack_vec3(a, 0, -1, DIR_FRAC)
+    dut.resp_result.value = far
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.d_we.value) == 1, "Camera did not store F + aR in ray_d"
+    assert int(dut.d_wdata.value) == far, "Camera stored incorrect F + aR"
+    assert int(dut.o_we.value) == 0 and int(dut.done.value) == 0, "Camera finished too early"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    dut.ray_d.value = far  # RTU applies the Ray Generator's direction write.
+    await Timer(1, unit="ns")
+
+    # b * U.
+    received_request = False
+    for i in range(MAX_CYCLES):
+        if int(dut.req_valid.value) == 1:
+            received_request = True
+            break
+        await tick(dut)
+    assert received_request, "Camera never requested b * U"
+    assert int(dut.req_op.value) == 14, "Expected M_SCAL_VEC for b * U"
+    assert int(dut.req_fmt.value) == 1, "Wrong format for b * U"
+    assert int(dut.req_we.value) == 0x9F, "Wrong request write mask for b * U"
+    assert int(dut.req_v.value) == u, "Wrong camera U vector"
+    assert int(dut.req_resize.value) == 0, "Unexpected resize for b * U"
+    b_word = int(dut.req_u.value) & 0xFFFF
+    assert b_word & (~jitter_mask & 0xFFFF) == b_base & (~jitter_mask & 0xFFFF), "Camera Y pixel bits or jitter placement wrong"
+    if test_handshake:
+        await check_request_stall(dut)
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    if test_handshake:
+        await check_response_wait(dut)
+
+    b = float16(b_word)
+    bu = pack_vec3(0, b, 0, DIR_FRAC)
+    dut.resp_result.value = bu
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.d_we.value) == 0 and int(dut.o_we.value) == 0, "Unexpected write after b * U"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    await Timer(1, unit="ns")
+
+    # (F + aR) + bU: this checks that the parked ray_d is actually used.
+    received_request = False
+    for i in range(MAX_CYCLES):
+        if int(dut.req_valid.value) == 1:
+            received_request = True
+            break
+        await tick(dut)
+    assert received_request, "Camera never requested F + aR + bU"
+    assert int(dut.req_op.value) == 12, "Expected M_VADD for camera sum"
+    assert int(dut.req_we.value) == 0xFF, "Wrong request write mask for camera sum"
+    assert int(dut.req_u.value) == far, "Camera did not use parked F + aR"
+    assert int(dut.req_v.value) == bu, "Wrong bU operand for camera sum"
+    assert int(dut.req_resize.value) == 0, "Unexpected resize for camera sum"
+    if test_handshake:
+        await check_request_stall(dut)
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    if test_handshake:
+        await check_response_wait(dut)
+
+    total = pack_vec3(a, b, -1, DIR_FRAC)
+    dut.resp_result.value = total
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.d_we.value) == 0 and int(dut.o_we.value) == 0, "Camera sum wrote registers prematurely"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    await Timer(1, unit="ns")
+
+    # Normalize direction and set camera origin O=(0,0,CAM_Z).
+    received_request = False
+    for i in range(MAX_CYCLES):
+        if int(dut.req_valid.value) == 1:
+            received_request = True
+            break
+        await tick(dut)
+    assert received_request, "Camera never requested normalization"
+    assert int(dut.req_op.value) == 17, "Expected M_NORM for camera direction"
+    assert int(dut.req_fmt.value) == 1, "Wrong camera normalization format"
+    assert int(dut.req_we.value) == 0xF1, "Wrong request write mask for M_NORM"
+    assert int(dut.req_u.value) == total, "Wrong camera vector for normalization"
+    assert int(dut.req_resize.value) == 1, "Camera must assert req_resize for M_NORM"
+    assert int(dut.done.value) == 0, "Camera finished before normalization response"
+    if test_handshake:
+        await check_request_stall(dut)
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    if test_handshake:
+        await check_response_wait(dut)
+
+    vector = components(total)
+    magnitude = math.sqrt(sum(value * value for value in vector))
+    normalized = pack_vec3(*(value / magnitude for value in vector), DIR_FRAC)
+    new_origin = pack_vec3(0, 0, camera_height, POS_FRAC)
+    dut.resp_result.value = normalized
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.d_we.value) == 1, "Camera did not write normalized direction"
+    assert int(dut.d_wdata.value) == normalized, "Camera wrote incorrect normalized direction"
+    assert int(dut.o_we.value) == 1, "Camera did not write its origin"
+    assert int(dut.o_wdata.value) == new_origin, "Camera origin does not match CAM_Z"
+    assert int(dut.scratch_we.value) == 0, "Camera unexpectedly wrote scratch on completion"
+    assert int(dut.done.value) == 1, "Camera did not pulse done on completion"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    await Timer(1, unit="ns")
+    assert int(dut.req_valid.value) == 0, "Camera issued an extra request after completion"
+    assert int(dut.done.value) == 0, "Camera done pulse did not clear"
+    assert int(dut.o_we.value) == 0 and int(dut.d_we.value) == 0, "Camera wrote registers after completion"
+
+
+@cocotb.test()
+async def test_camera_center_64(dut):
+    await run_camera_case(dut, width=64, pixel_x=32, pixel_y=32, test_handshake=True)
+
+@cocotb.test()
+async def test_camera_top_left_64(dut):
+    await run_camera_case(dut, width=64, pixel_x=0, pixel_y=0)
+
+@cocotb.test()
+async def test_camera_bottom_right_64(dut):
+    await run_camera_case(dut, width=64, pixel_x=63, pixel_y=63)
+
+@cocotb.test()
+async def test_camera_top_right_512(dut):
+    await run_camera_case(dut, width=512, pixel_x=511, pixel_y=0)
+
+@cocotb.test()
+async def test_camera_bottom_left_512(dut):
+    await run_camera_case(dut, width=512, pixel_x=0, pixel_y=511, camera_height=2)
+
+@cocotb.test()
+async def test_camera_center_128_negative_height(dut):
+    await run_camera_case(dut, width=128, pixel_x=64, pixel_y=64, camera_height=-1.5)
+
+
+# Controller / FSM corner cases
+@cocotb.test()
+async def test_reset_during_stalled_request(dut):
+    await setup(dut)
+    dut.mode.value = 2
+    dut.ray_d.value = pack_vec3(0, 0, -1, DIR_FRAC)
+    dut.ray_n.value = pack_vec3(0, 0, 1, DIR_FRAC)
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+
+    assert int(dut.req_valid.value) == 1, "Mirror did not issue its first request"
+    assert int(dut.req_op.value) == 15, "Expected mirror M_DOT before reset"
+    await check_request_stall(dut)
+
+    # Reset aborts the operation even when req_ready never goes high.
+    dut.rst_n.value = 0
+    await tick(dut)
+    assert int(dut.req_valid.value) == 0, "Reset did not cancel stalled request"
+    assert int(dut.done.value) == 0, "Reset caused a completion pulse"
+    assert int(dut.d_we.value) == 0 and int(dut.o_we.value) == 0 and int(dut.scratch_we.value) == 0, "Register write during reset"
+
+    dut.rst_n.value = 1
+    await tick(dut)
+    assert int(dut.req_valid.value) == 0, "Request resumed after reset without start"
+
+    # The module should be ready for an entirely new ray.
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+    assert int(dut.req_valid.value) == 1, "Ray Generator did not restart after reset"
+    assert int(dut.req_op.value) == 15, "Restarted on the wrong macro-op"
+
+
+@cocotb.test()
+async def test_reset_while_waiting_for_response(dut):
+    await setup(dut)
+    dut.mode.value = 2
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+
+    assert int(dut.req_valid.value) == 1, "No request before response-wait reset"
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    await check_response_wait(dut)
+
+    # Abort while the first RTU response is outstanding.
+    dut.rst_n.value = 0
+    await tick(dut)
+    assert int(dut.req_valid.value) == 0, "Request visible during reset"
+    assert int(dut.done.value) == 0, "Reset unexpectedly finished a ray"
+    assert int(dut.o_we.value) == 0 and int(dut.d_we.value) == 0 and int(dut.scratch_we.value) == 0, "Write during reset"
+    dut.rst_n.value = 1
+    await tick(dut)
+
+    # Even a late response from the canceled transaction must be ignored.
+    dut.resp_result.value = pack_vec3(-1, 0, 0, DIR_FRAC)
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.scratch_we.value) == 0 and int(dut.done.value) == 0, "Late response changed an idle generator"
+    await tick(dut)
+    dut.resp_valid.value = 0
+    assert int(dut.req_valid.value) == 0, "Late response started a new request"
+
+
+@cocotb.test()
+async def test_start_ignored_while_busy(dut):
+    await setup(dut)
+    direction = (0, 0, -1)
+    normal = (0, 0, 1)
+    dut.ray_d.value = pack_vec3(*direction, DIR_FRAC)
+    dut.ray_n.value = pack_vec3(*normal, DIR_FRAC)
+    dut.mode.value = 2
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+
+    assert int(dut.req_valid.value) == 1, "Mirror did not issue M_DOT"
+    assert int(dut.req_op.value) == 15, "Wrong first mirror macro-op"
+    first_request = (int(dut.req_op.value), int(dut.req_u.value), int(dut.req_v.value))
+
+    # Trying to start glass mid-mirror should not replace the active operation.
+    dut.mode.value = 3
+    dut.start.value = 1
+    for _ in range(3):
+        await tick(dut)
+        assert int(dut.req_valid.value) == 1, "Request disappeared after busy start"
+        assert (int(dut.req_op.value), int(dut.req_u.value), int(dut.req_v.value)) == first_request, "Busy start changed the current request"
+        assert int(dut.done.value) == 0, "Busy start finished the current operation"
+    dut.start.value = 0
+
+    dut.req_ready.value = 1
+    await tick(dut)
+    dut.req_ready.value = 0
+    await check_response_wait(dut)
+    dot = pack_vec3(-1, 0, 0, DIR_FRAC)
+    dut.resp_result.value = dot
+    dut.resp_valid.value = 1
+    await Timer(1, unit="ns")
+    assert int(dut.scratch_we.value) == 1, "Mirror did not save its dot product"
+    await tick(dut)
+    dut.scratch.value = dot & 0xFFFF
+    dut.resp_valid.value = 0
+    await Timer(1, unit="ns")
+
+    assert int(dut.req_valid.value) == 1, "No request after mirror dot product"
+    assert int(dut.req_op.value) == 0, "Busy start changed mirror into glass (expected M_ADD)"
+    assert (int(dut.req_u.value) & 0xFFFF) == (dot & 0xFFFF), "Mirror lost its dot product"
+
+
+# Additional secondary-ray inputs. These reuse the existing explicit checks.
+@cocotb.test()
+async def test_mirror_tilted_normal_yz(dut):
+    await run_mirror_case(dut, direction=(0, -1, 0), normal=(0, 0.6, 0.8), origin=(-1, 3, -2))
+
+@cocotb.test()
+async def test_matte_ground_negative_normal(dut):
+    await run_matte_case(dut, normal=(0, -1, 0), origin=(-2, 1, -4))
+
+@cocotb.test()
+async def test_glass_enter_angled_reflection(dut):
+    # A directed Schlick branch test: the RTU comparison response is intentionally forced negative.
+    await run_glass_case(dut, direction=(0.6, 0, -0.8), normal=(0, 0, 1), origin=(-2, 1, 2), path="reflect")
+
+@cocotb.test()
+async def test_glass_exit_near_critical_refraction(dut):
+    # Exit just below the critical angle: positive k, so refraction is possible.
+    await run_glass_case(dut, direction=(0.6, 0, -0.8), normal=(0, 0, 1), origin=(2, -1, 0), flip=True, path="refract")
+
+@cocotb.test()
+async def test_glass_exit_just_past_critical_angle(dut):
+    # Exit just above the critical angle: the negative k response must select reflection.
+    await run_glass_case(dut, direction=(0.7, 0, -math.sqrt(0.51)), normal=(0, 0, 1), origin=(-1, 2, 1), flip=True, path="tir")
+
+@cocotb.test()
+async def test_mirror_then_camera_without_reset(dut):
+    # Complete a mirror ray, then start a primary camera ray without resetting.
+    await run_mirror_case(dut, direction=(0, 0, -1), normal=(0, 0, 1), origin=(1, 0, 2))
+    assert int(dut.req_valid.value) == 0, "Mirror left a request pending"
+    dut.mode.value = 0
+    dut.start.value = 1
+    await tick(dut)
+    dut.start.value = 0
+    assert int(dut.req_valid.value) == 1, "Camera could not start immediately after mirror"
+    assert int(dut.req_op.value) == 14, "Expected camera M_SCAL_VEC after mirror completed"
+    assert int(dut.req_v.value) == pack_vec3(1, 0, 0, DIR_FRAC), "Second transaction did not start with camera R"
+    assert int(dut.done.value) == 0, "Spurious done pulse at second transaction start"
