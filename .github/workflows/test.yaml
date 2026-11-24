@@ -41,10 +41,19 @@ jobs:
           # make will return success even if the test fails, so check for failure in the results.xml
           ! grep failure results.xml
 
+      # Decoder unit tests (tb_decode.sv). They write their own results file, so
+      # they do not overwrite the results of the integration tests.
+      - name: Run decoder tests
+        if: success() || failure()
+        run: |
+          cd test
+          COCOTB_RESULTS_FILE=results_decode.xml make DECODER_TEST=yes
+          ! grep failure results_decode.xml
+
       - name: Test Summary
         uses: test-summary/action@v2.3
         with:
-          paths: "test/results.xml"
+          paths: "test/results*.xml"
         if: always()
 
       - name: upload vcd
@@ -55,3 +64,4 @@ jobs:
           path: |
             test/tb.vcd
             test/results.xml
+            test/results_decode.xml
