@@ -8,11 +8,9 @@ from cocotb.triggers import ClockCycles
 
 @cocotb.test()
 async def test_project(dut):
-    """Smoke test: the wired-up top elaborates, resets, and runs.
-
-    The modules below the top are still stubs, so this only checks the pins
-    that the top drives itself. Add checks here as modules are implemented.
-    """
+    # Smoke test: the top elaborates, resets, and runs. The modules below it
+    # are still stubs, so this only checks the pins the top drives itself.
+    # Module tests live in their own files, like test_clkdiv.py.
     dut._log.info("Start")
 
     # Set the clock period to 40 ns (25 MHz)
