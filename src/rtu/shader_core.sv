@@ -27,10 +27,10 @@ module shader_core #(
     input  logic [23:0]            ground_a,     // checker colours, same order
     input  logic [23:0]            ground_b,
 
-    // SRAM read channel -> SRAM Controller (this block is the client)
+    // SRAM read channel -> SRAM Controller
     sram_rd_if.client              sram,
 
-    // Macro-ops -> Decode Unit (this block is the client)
+    // Macro-ops -> Decode Unit
     macro_if.client                macro
 );
 
