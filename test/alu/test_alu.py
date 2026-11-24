@@ -73,6 +73,13 @@ async def test_basic_add(dut):
     await reset(dut)
     await check_operation(dut, ALU_ADD, 10, 20)
 
+@cocotb.test()
+async def test_add_edgecases(dut):
+    await reset(dut)    
+    await check_operation(dut, ALU_ADD, 32768, -32768)
+    await check_operation(dut, ALU_ADD, -32768, 1)
+    await check_operation(dut, ALU_ADD, 32768, -1)
+
 
 # Subtraction Operation Unit Tests
 @cocotb.test()
@@ -90,10 +97,15 @@ async def test_sub_min_operand(dut):
 
     await check_operation(dut, ALU_SUB, 0, -32768)
 
+@cocotb.test()
+async def test_sub_edgecases(dut):
+    await reset(dut)    
+    await check_operation(dut, ALU_ADD, -32768, -32767)
+    await check_operation(dut, ALU_ADD, -32768, 1)
+    await check_operation(dut, ALU_ADD, 32767, -1)
+
 
 # Boolean Logic Unit Tests
-
-
 @cocotb.test()
 async def test_equality(dut):
     await reset(dut)
@@ -129,6 +141,9 @@ async def test_comparison_lt_ge(dut):
 async def test_positive_overflow(dut):
     await reset(dut)
     await check_operation(dut, ALU_ADD, 32767, 1)
+    await check_operation(dut, ALU_ADD, 32767, 1)
+    await check_operation(dut, ALU_ADD, -32768, -32768)
+    await check_operation(dut, ALU_ADD, 32767, 32767)
 
 @cocotb.test()
 async def test_sub_overflow(dut):
