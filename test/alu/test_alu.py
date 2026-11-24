@@ -84,7 +84,6 @@ async def test_subtraction(dut):
     await check_operation(dut, ALU_SUB, -5, -10)
     await check_operation(dut, ALU_SUB, 5, 5)
 
-# FAIL
 @cocotb.test()
 async def test_sub_min_operand(dut):
     await reset(dut)
@@ -94,13 +93,13 @@ async def test_sub_min_operand(dut):
 
 # Boolean Logic Unit Tests
 
-# FAIL
+
 @cocotb.test()
 async def test_equality(dut):
     await reset(dut)
     await check_operation(dut, ALU_EQ, 5, 5)
 
-# FAIL
+
 @cocotb.test()
 async def test_comparison_eq_ne(dut):
     await reset(dut)
