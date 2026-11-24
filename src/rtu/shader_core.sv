@@ -1,7 +1,7 @@
 // Shader Core: keeps the attenuation and makes the sample colour when the path ends.
 module shader_core #(
     parameter ADDR_WIDTH = 9,
-    parameter WLEN       = 16,
+    parameter WLEN       = 16,   // now unused (resp_result width comes from macro_if::vec3_t)
     parameter DATA_WIDTH = 16
 ) (
     input  logic                   clk,
@@ -16,7 +16,7 @@ module shader_core #(
     input  logic                   last_bounce,  // 1 when the bounce count is 8: a surface hit gives black
     output logic                   done,         // 1-cycle pulse: the outputs below are valid
     output logic                   path_end,     // 1 = the sample is finished (sky, glow or black)
-    output logic [1:0]             material,     // path goes on: 00 matte, 01 mirror, 10 glass. This is FED TO Ray Generator so it knows the type of bounce.
+    output logic [1:0]             material,     // path goes on: 00 matte, 01 mirror, 10 glass.
     output logic [35:0]            sample,       // R [35:24], G [23:12], B [11:0], valid with path_end = 1
 
     // Ray and scene, from RTU registers (must not change from start to done)
@@ -27,19 +27,11 @@ module shader_core #(
     input  logic [23:0]            ground_a,     // checker colours, same order
     input  logic [23:0]            ground_b,
 
-    // SRAM reads (the RTU passes them on to the SRAM Controller)
-    output logic [ADDR_WIDTH-1:0]  sram_addr,    // register: address of the word to read
-    output logic                   sram_rd,      // 1-cycle pulse: read the word at sram_addr
-    input  logic [DATA_WIDTH-1:0]  sram_data,    // SRAM word, shared by all RTU sub-blocks
-    input  logic                   sram_valid,   // 1 = sram_data holds the word asked for
+    // SRAM read channel -> SRAM Controller (this block is the client)
+    sram_rd_if.client              sram,
 
-    // Macro-ops (the RTU passes them on to the Decode Unit; the macro_if client signals)
-    output logic                   req_valid,    // 1 = req_op holds a macro-op
-    output logic [101:0]           req_op,       // fmt [101], u [100:53], v [52:5], opcode [4:0]
-    input  logic                   req_ready,    // 1 = the Decode Unit takes req_op in this cycle
-    input  logic                   resp_valid,   // 1 = resp_result holds the result
-    input  logic [3*WLEN-1:0]      resp_result,  // z [47:32], y [31:16], x [15:0]
-    output logic                   resp_ready    // 1 = the SC takes resp_result in this cycle
+    // Macro-ops -> Decode Unit (this block is the client)
+    macro_if.client                macro
 );
 
 localparam SCRATCH_BITS     = 40;
@@ -105,10 +97,11 @@ logic                     obj3_to_glo;
 
 // --- ASSUMPTIONS ---
 // -: SRAM read is not pipelined
-// -: sram_addr must be held steady until SRAM data is received
-// -: we cannot pulse sram_rd=1 on the same posedge where we sample sram_valid=1
+// -: sram.req_raddr is held steady from the request state through the *W wait state
+// -: sram.req_valid is never high on the same posedge where sram.resp_valid is sampled
+//    (request states and wait states are disjoint)
 // -: we cannot pulse done=1 on the same posedge where we sample start=1
-// +: no need to hold req_op steady after req handshake is done (posedge where ready=valid=1)
+// +: no need to hold macro.req_op steady after the req handshake is done (posedge where ready=valid=1)
 // +: macro-op req handshake must complete (posedge where ready=valid=1) before resp handshake
 
 // Macro-op operand wires
@@ -127,47 +120,48 @@ assign dz_in              = {3{dz}};
 assign sky_ext_in         = { {7{scratch_r[26]}}, scratch_r[26:18], // Red
                               {7{scratch_r[17]}}, scratch_r[17:9],  // Green
                               {7{scratch_r[8]}},  scratch_r[8:0] }; // Blue
-assign col_in             = {8'b0, scratch_r[23:16],    8'b0, scratch_r[15:8],    8'b0, scratch_r[7:0]};           
+assign col_in             = {8'b0, scratch_r[23:16],    8'b0, scratch_r[15:8],    8'b0, scratch_r[7:0]};
 assign str_in             = {3{2'b0, scratch_r[39:26]}};
 
 // Macro-op result wires
-assign sur_res            = {resp_result[40:33], resp_result[24:17], resp_result[8:1]};
-assign sky123w_res        = {resp_result[40:32], resp_result[24:16], resp_result[8:0]};
-assign sky4w_res          = {4'b0, resp_result[40:33], 4'b0, resp_result[24:17], 4'b0, resp_result[8:1]};
-assign glo1w_res          = {resp_result[40:33], resp_result[24:17], resp_result[8:1]};
-assign glo2w_res          = {resp_result[46:35], resp_result[30:19], resp_result[14:3]};
+assign sur_res            = {macro.resp_result[40:33], macro.resp_result[24:17], macro.resp_result[8:1]};
+assign sky123w_res        = {macro.resp_result[40:32], macro.resp_result[24:16], macro.resp_result[8:0]};
+assign sky4w_res          = {4'b0, macro.resp_result[40:33], 4'b0, macro.resp_result[24:17], 4'b0, macro.resp_result[8:1]};
+assign glo1w_res          = {macro.resp_result[40:33], macro.resp_result[24:17], macro.resp_result[8:1]};
+assign glo2w_res          = {macro.resp_result[46:35], macro.resp_result[30:19], macro.resp_result[14:3]};
 
 // Miscellaneous next-state wires
 assign gnd_col            = checker_sel ? ground_b : ground_a;
 
 // State transition wires
-assign obj1_to_zro        = ~&sram_data[1:0] & last_bounce;
+assign obj1_to_zro        = ~&sram.resp_rdata[1:0] & last_bounce;
 assign obj3_to_glo        = &scratch_r[25:24];
 
-// SRAM read wires
-assign sram_addr          = hit_addr + ((state_r == STATE_OBJ1 || state_r == STATE_OBJ1W) ? 2 :
+// SRAM read channel wires (client)
+assign sram.req_raddr     = hit_addr + ((state_r == STATE_OBJ1 || state_r == STATE_OBJ1W) ? 2 :
                                         (state_r == STATE_OBJ2 || state_r == STATE_OBJ2W) ? 1 :
                                                                                             0);
-assign sram_rd            = (state_r == STATE_OBJ1) ||
+assign sram.req_valid     = (state_r == STATE_OBJ1) ||
                             (state_r == STATE_OBJ2) ||
                             (state_r == STATE_OBJ3) ;
+assign sram.resp_ready    = 1'b1;   // the *W states always take the response
 
-// Macro-op interface wires
-assign req_valid          = (state_r == STATE_SKY1) ||
+// Macro-op interface wires (client)
+assign macro.req_valid    = (state_r == STATE_SKY1) ||
                             (state_r == STATE_SKY2) ||
                             (state_r == STATE_SKY3) ||
                             (state_r == STATE_SKY4) ||
                             (state_r == STATE_GLO1) ||
                             (state_r == STATE_GLO2) ||
                             (state_r == STATE_SUR)  ;
-assign resp_ready         = '1;
+assign macro.resp_ready   = 1'b1;
 
 // Output wires
-assign done               = (state_r == STATE_ZERO)                                 ||
-                            (state_r == STATE_OBJ1W && &{sram_valid, obj1_to_zro})  ||
-                            (state_r == STATE_SKY4W && resp_valid)                  ||
-                            (state_r == STATE_GLO2W && resp_valid)                  ||
-                            (state_r == STATE_SURW  && resp_valid)                  ;
+assign done               = (state_r == STATE_ZERO)                                    ||
+                            (state_r == STATE_OBJ1W && &{sram.resp_valid, obj1_to_zro}) ||
+                            (state_r == STATE_SKY4W && macro.resp_valid)                ||
+                            (state_r == STATE_GLO2W && macro.resp_valid)                ||
+                            (state_r == STATE_SURW  && macro.resp_valid)                ;
 assign material           = scratch_r[25:24];
 assign path_end           = scratch_r[36];
 
@@ -187,16 +181,17 @@ always_comb begin
 end
 
 always_comb begin
+  // sometimes, done=1 but scratch_r does not have the correct values yet
+  // TODO: If there is a global .sv file for opcode params, use those instead of localparams
   case (state_r)
-    //TODO: If there is a global .sv file for opcode params, use those instead of localparams
-    STATE_SUR:    req_op = {1'b0, col_p1_in,  att_in,     M_VMUL};
-    STATE_SKY1:   req_op = {1'b0, sky_top_in, sky_hor_in, M_VSUB};
-    STATE_SKY2:   req_op = {1'b1, dz_in,      sky_ext_in, M_SCAL_VEC};
-    STATE_SKY3:   req_op = {1'b0, sky_hor_in, sky_ext_in, M_VADD};
-    STATE_SKY4:   req_op = {1'b0, att_p1_in,  sky_ext_in, M_VMUL};
-    STATE_GLO1:   req_op = {1'b0, tmp_p1,     col_in    , M_VMUL};
-    STATE_GLO2:   req_op = {1'b0, str_in,     col_in    , M_VMUL};
-    default:      req_op = 'x;
+    STATE_SUR:    macro.req_op = {1'b0, col_p1_in,  att_in,     M_VMUL};
+    STATE_SKY1:   macro.req_op = {1'b0, sky_top_in, sky_hor_in, M_VSUB};
+    STATE_SKY2:   macro.req_op = {1'b1, dz_in,      sky_ext_in, M_SCAL_VEC};
+    STATE_SKY3:   macro.req_op = {1'b0, sky_hor_in, sky_ext_in, M_VADD};
+    STATE_SKY4:   macro.req_op = {1'b0, att_p1_in,  sky_ext_in, M_VMUL};
+    STATE_GLO1:   macro.req_op = {1'b0, tmp_p1,     col_in    , M_VMUL};
+    STATE_GLO2:   macro.req_op = {1'b0, str_in,     col_in    , M_VMUL};
+    default:      macro.req_op = 'x;
   endcase
 end
 
@@ -216,39 +211,39 @@ always_ff @(posedge clk or negedge rst_n) begin
           default:;
         endcase
 
-      STATE_OBJ1:                   state_r <= STATE_OBJ1W;
+      STATE_OBJ1:    if (sram.req_ready) state_r <= STATE_OBJ1W;
       STATE_OBJ1W:
-        case ({sram_valid, obj1_to_zro})
+        case ({sram.resp_valid, obj1_to_zro})
           2'b11:    state_r <= STATE_IDLE;          // Zero sample
           2'b10:    state_r <= STATE_OBJ2;          // Object surface / Glow sample
           default:;
         endcase
 
-      STATE_OBJ2:                   state_r <= STATE_OBJ2W;
-      STATE_OBJ2W:  if (sram_valid) state_r <= STATE_OBJ3;
-      STATE_OBJ3:                   state_r <= STATE_OBJ3W;
-      STATE_OBJ3W: 
-        case ({sram_valid, obj3_to_glo})
+      STATE_OBJ2:    if (sram.req_ready) state_r <= STATE_OBJ2W;
+      STATE_OBJ2W:   if (sram.resp_valid) state_r <= STATE_OBJ3;
+      STATE_OBJ3:    if (sram.req_ready) state_r <= STATE_OBJ3W;
+      STATE_OBJ3W:
+        case ({sram.resp_valid, obj3_to_glo})
           2'b11:    state_r <= STATE_GLO1;          // Glow sample
           2'b10:    state_r <= STATE_SUR;           // Object surface
           default:;
         endcase
 
-      STATE_SUR:    if (req_ready)  state_r <= STATE_SURW;
-      STATE_SURW:   if (resp_valid) state_r <= STATE_IDLE;
-      STATE_SKY1:   if (req_ready)  state_r <= STATE_SKY1W;
-      STATE_SKY1W:  if (resp_valid) state_r <= STATE_SKY2;
-      STATE_SKY2:   if (req_ready)  state_r <= STATE_SKY2W;
-      STATE_SKY2W:  if (resp_valid) state_r <= STATE_SKY3;
-      STATE_SKY3:   if (req_ready)  state_r <= STATE_SKY3W;
-      STATE_SKY3W:  if (resp_valid) state_r <= STATE_SKY4;
-      STATE_SKY4:   if (req_ready)  state_r <= STATE_SKY4W;
-      STATE_SKY4W:  if (resp_valid) state_r <= STATE_IDLE;
-      STATE_GLO1:   if (req_ready)  state_r <= STATE_GLO1W;
-      STATE_GLO1W:  if (resp_valid) state_r <= STATE_GLO2;
-      STATE_GLO2:   if (req_ready)  state_r <= STATE_GLO2W;
-      STATE_GLO2W:  if (resp_valid) state_r <= STATE_IDLE;
-      STATE_ZERO:                   state_r <= STATE_IDLE;
+      STATE_SUR:    if (macro.req_ready)  state_r <= STATE_SURW;
+      STATE_SURW:   if (macro.resp_valid) state_r <= STATE_IDLE;
+      STATE_SKY1:   if (macro.req_ready)  state_r <= STATE_SKY1W;
+      STATE_SKY1W:  if (macro.resp_valid) state_r <= STATE_SKY2;
+      STATE_SKY2:   if (macro.req_ready)  state_r <= STATE_SKY2W;
+      STATE_SKY2W:  if (macro.resp_valid) state_r <= STATE_SKY3;
+      STATE_SKY3:   if (macro.req_ready)  state_r <= STATE_SKY3W;
+      STATE_SKY3W:  if (macro.resp_valid) state_r <= STATE_SKY4;
+      STATE_SKY4:   if (macro.req_ready)  state_r <= STATE_SKY4W;
+      STATE_SKY4W:  if (macro.resp_valid) state_r <= STATE_IDLE;
+      STATE_GLO1:   if (macro.req_ready)  state_r <= STATE_GLO1W;
+      STATE_GLO1W:  if (macro.resp_valid) state_r <= STATE_GLO2;
+      STATE_GLO2:   if (macro.req_ready)  state_r <= STATE_GLO2W;
+      STATE_GLO2W:  if (macro.resp_valid) state_r <= STATE_IDLE;
+      STATE_ZERO:                         state_r <= STATE_IDLE;
       default:;
     endcase
   end
@@ -271,16 +266,16 @@ always_ff @(posedge clk or negedge rst_n) begin
         endcase
 
       STATE_OBJ1W:
-        case ({sram_valid, obj1_to_zro})
-          2'b10:    scratch_r[39:24]  <= sram_data[15:0];     // Read W2 (IMPT: only when -> OBJ2)
+        case ({sram.resp_valid, obj1_to_zro})
+          2'b10:    scratch_r[39:24]  <= sram.resp_rdata[15:0]; // Read W2 (IMPT: only when -> OBJ2)
           default:;
         endcase
 
-      STATE_OBJ2W:  scratch_r[23:8]   <= sram_data[15:0];     // Read W1
-      STATE_OBJ3W:  scratch_r[7:0]    <= sram_data[15:8];     // Read W0
+      STATE_OBJ2W:  scratch_r[23:8]   <= sram.resp_rdata[15:0]; // Read W1
+      STATE_OBJ3W:  scratch_r[7:0]    <= sram.resp_rdata[15:8]; // Read W0
       STATE_SKY1W:  scratch_r[26:0]   <= sky123w_res;
       STATE_SKY2W:  scratch_r[26:0]   <= sky123w_res;
-      STATE_SKY3W:  scratch_r[26:0]   <= sky123w_res;        
+      STATE_SKY3W:  scratch_r[26:0]   <= sky123w_res;
       STATE_SKY4W:  scratch_r[35:0]   <= sky4w_res;
       STATE_GLO1W:  scratch_r[23:0]   <= glo1w_res;
       STATE_GLO2W:  scratch_r[36:0]   <= {1'b1, glo2w_res};
@@ -297,8 +292,8 @@ always_ff @(posedge clk or negedge rst_n) begin
   end
   else begin
     case (state_r)
-      STATE_IDLE: if (start & new_sample) att_r <= '1;
-      STATE_SURW: if (resp_valid)         att_r <= sur_res;
+      STATE_IDLE: if (start & new_sample)    att_r <= '1;
+      STATE_SURW: if (macro.resp_valid)      att_r <= sur_res;
       default:;
     endcase
   end
