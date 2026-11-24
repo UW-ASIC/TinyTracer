@@ -1,5 +1,0 @@
-# cocotb / verilator build artifacts 
-sim_build/
-*.vcd
-results.xml
-__pycache__/
