@@ -1,0 +1,18 @@
+# defaults
+SIM ?= verilator
+TOPLEVEL_LANG ?= verilog
+SRC_DIR = $(abspath $(CURDIR)/../../src)
+
+VERILOG_SOURCES += $(SRC_DIR)/tinytracer_pkg.sv
+VERILOG_SOURCES += $(SRC_DIR)/rtu/ray_gen/rng.sv
+
+# Seperate build folder
+SIM_BUILD = sim_build/rng
+
+EXTRA_ARGS += --trace -Wno-fatal
+
+TOPLEVEL = rng
+COCOTB_TEST_MODULES = test_rng
+
+export PYTHONPATH := $(abspath $(CURDIR)/..):$(PYTHONPATH)
+include $(shell cocotb-config --makefiles)/Makefile.sim
