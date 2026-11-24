@@ -51,8 +51,7 @@ always_comb begin
     t_reg_req_op2 = reg_req_op2 ^ {WLEN{sub_en}};
 
     // 16-bit adder
-    raw_res = reg_req_op1 + t_reg_req_op2;
-    raw_res = (sub_en) ? (raw_res + SIGNED_ONE) : raw_res;
+    raw_res = reg_req_op1 + t_reg_req_op2 + sub_en;
 
     // detect overflow
     add_overflow =
