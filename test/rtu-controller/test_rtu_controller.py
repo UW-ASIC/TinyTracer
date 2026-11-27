@@ -36,13 +36,18 @@ HEADER = [
     0x0800,                  #w16: CAM_Z = 16.0
 ]
 
+#Same header but 1 sample per pixel (SPP_LOG2 = 0), so a whole row of pixels is quick to run
+HEADER_1SPP = HEADER[:15] + [(4 << 3) | 0] + HEADER[16:]
+
+IMG_W = 512  #setup drives img_w = 512, and 512 is also the largest image, so a row is 512 pixels
+
 
 def vec3(x, y, z):
     #vec3_t is packed as {z, y, x}, so x is the lowest 16 bits
     return (z << 32) | (y << 16) | x
 
 
-async def sram_responder(dut, reads):
+async def sram_responder(dut, reads, header):
     #Fake SRAM (timing from docs/modules/sram/sram_control.md)
     #If we take an address in cycle k, the data comes back in cycle k + 2
     #We take the next address in the same cycle the data comes back, so 2 cycles per word
@@ -53,7 +58,7 @@ async def sram_responder(dut, reads):
         resp = pending is not None and wait == 0
         ready = pending is None or resp
         dut.sram_resp_valid.value = int(resp)
-        dut.sram_resp_rdata.value = HEADER[pending] if resp and pending < HDR_WORDS else 0
+        dut.sram_resp_rdata.value = header[pending] if resp and pending < HDR_WORDS else 0
         dut.sram_req_ready.value = int(ready)
 
         await ReadOnly()
@@ -70,8 +75,9 @@ async def sram_responder(dut, reads):
             pending, wait = addr, 1
 
 
-async def setup(dut):
+async def setup(dut, header=HEADER):
     #Start the clock and the fake SRAM, hold reset for a bit, then let go
+    #The SRAM sends back header for the header reads (HEADER unless a test picks another one)
     #Returns the list of addresses the SRAM gets asked for
     cocotb.start_soon(Clock(dut.clk, CLK_PERIOD_NS, "ns").start())
 
@@ -93,7 +99,7 @@ async def setup(dut):
 
     #Start the SRAM after reset so it doesn't count a read left over from the last test
     reads = []
-    cocotb.start_soon(sram_responder(dut, reads))
+    cocotb.start_soon(sram_responder(dut, reads, header))
     await RisingEdge(dut.clk)
     return reads
 
@@ -199,9 +205,9 @@ async def done_then_start(dut, done_block, next_block, expected_mode, hit_kind=N
     await RisingEdge(dut.clk)
 
 
-async def reach_iu_search(dut):
+async def reach_iu_search(dut, header=HEADER):
     #Steps most path tests share: reset, render, header load, ray generator mode 0, then intersection unit mode 0
-    reads = await setup(dut)
+    reads = await setup(dut, header)
     await render_to_raygen_start(dut, reads)
     await done_then_start(dut, "rg", "iu", 0)
 
@@ -214,6 +220,49 @@ async def diffuse_bounce(dut):
     await done_then_start(dut, "iu", "sh", 2)
     await done_then_start(dut, "sh", "rg", 1)
     await done_then_start(dut, "rg", "iu", 0)
+
+
+async def read_pixel(dut):
+    #Read pix_x and pix_y, then move on to the next cycle
+    await ReadOnly()
+    pixel = (int(dut.u_rtu.pix_x.value), int(dut.u_rtu.pix_y.value))
+    await RisingEdge(dut.clk)
+    return pixel
+
+
+async def sky_sample(dut):
+    #Finish the current sample through the sky path, starting from intersection unit mode 0
+    #sky hit -> sky sample -> sample done -> ray generator mode 0 for the next sample -> search again
+    #Returns the pixel of the next sample. We read it while the ray generator is busy,
+    #since the counter might only change at the end of the start cycle
+    await done_then_start(dut, "iu", "sh", 0, hit_kind=HIT_SKY)
+    await done_then_start(dut, "sh", "rg", 0)
+    pixel = await read_pixel(dut)
+    await done_then_start(dut, "rg", "iu", 0)
+    return pixel
+
+
+async def hold_without_done(dut, cycles, expected_active):
+    #Keep every done low for some cycles while a block is working
+    #The controller should not start anything and active should stay on the working block
+    for i in range(cycles):
+        await ReadOnly()
+        assert starts(dut) == (0, 0, 0), f"start {starts(dut)} while waiting for done (cycle {i})"
+        active = int(dut.u_rtu.active.value)
+        assert active == expected_active, f"active = {active} while waiting for done, expected {expected_active}"
+        await RisingEdge(dut.clk)
+
+
+async def pulse_ignored_done(dut, block, cycles=5):
+    #Pulse done on a block that is NOT active right now. The controller should ignore it,
+    #so nothing should start in that cycle or the next few cycles
+    done = getattr(dut.u_rtu, BLOCKS[block]).done
+    done.value = 1
+    for i in range(cycles):
+        await ReadOnly()
+        assert starts(dut) == (0, 0, 0), f"start {starts(dut)} after {block} done while {block} was not active (cycle {i})"
+        await RisingEdge(dut.clk)
+        done.value = 0
 
 
 @cocotb.test()
@@ -391,3 +440,107 @@ async def test_emissive_at_bounce_limit(dut):
         await diffuse_bounce(dut)
     await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
     await done_then_start(dut, "iu", "sh", 1, material=MAT_EMISSIVE)
+
+
+@cocotb.test()
+async def test_next_sample_same_pixel(dut):
+    #HEADER asks for 8 samples per pixel, so after the first sample the controller
+    #should start another camera ray (ray generator mode 0) for the same pixel
+    #We assume the first pixel is (0, 0). The docs only say pixels go row by row
+    await reach_iu_search(dut)
+    first = await read_pixel(dut)
+    assert first == (0, 0), f"first pixel is {first}, expected (0, 0)"
+    pixel = await sky_sample(dut)
+    assert pixel == first, f"pixel changed to {pixel} after 1 of 8 samples"
+
+
+@cocotb.test()
+async def test_last_sample_next_pixel(dut):
+    #Each pixel should last exactly 8 samples, then the next pixel starts
+    #We go through 2 full pixels, so a sample counter that doesn't reset fails on the second one
+    samples = 1 << (HEADER[15] & 0x7)
+    await reach_iu_search(dut)
+    pixels = [await read_pixel(dut)]
+    for _ in range(2 * samples):
+        pixels.append(await sky_sample(dut))
+    expected = [(n // samples, 0) for n in range(2 * samples + 1)]
+    assert pixels == expected, f"pixel of each sample was {pixels}, expected {expected}"
+
+
+@cocotb.test()
+async def test_end_of_row(dut):
+    #1 sample per pixel. x should count 0 to 511 with y = 0, then the next pixel is (0, 1)
+    #We assume x counts first, since the docs say row by row
+    await reach_iu_search(dut, HEADER_1SPP)
+    pixel = await read_pixel(dut)
+    for n in range(IMG_W + 1):
+        expected = (n % IMG_W, n // IMG_W)
+        assert pixel == expected, f"sample {n} was at pixel {pixel}, expected {expected}"
+        if n < IMG_W:
+            pixel = await sky_sample(dut)
+
+
+@cocotb.test()
+async def test_wait_for_done(dut):
+    #While a block is working, the controller should just wait for its done
+    #We hold the ray generator, then the intersection unit, then the shader core for 30 cycles each
+    #and check nothing starts early. After each done the next block should start like normal
+    reads = await setup(dut)
+    await render_to_raygen_start(dut, reads)
+    await hold_without_done(dut, 30, BLK_RAY_GEN)
+    await done_then_start(dut, "rg", "iu", 0)
+    await hold_without_done(dut, 30, BLK_ISECT)
+    await done_then_start(dut, "iu", "sh", 0, hit_kind=HIT_SKY)
+    await hold_without_done(dut, 30, BLK_SHADER)
+    await done_then_start(dut, "sh", "rg", 0)
+
+
+@cocotb.test()
+async def test_ignores_done_from_idle_block(dut):
+    #Only the active block's done should move the controller forward
+    #A done from a block that isn't running should do nothing
+    reads = await setup(dut)
+    await render_to_raygen_start(dut, reads)
+
+    #ray generator is active, so done from the other two should be ignored
+    dut.u_rtu.u_intersection_unit.hit_kind.value = HIT_OBJECT
+    await pulse_ignored_done(dut, "iu")
+    await pulse_ignored_done(dut, "sh")
+    await done_then_start(dut, "rg", "iu", 0)
+
+    #intersection unit is active now, so done from the other two should be ignored
+    await pulse_ignored_done(dut, "rg")
+    await pulse_ignored_done(dut, "sh")
+    await done_then_start(dut, "iu", "sh", 0, hit_kind=HIT_SKY)
+
+
+@cocotb.test()
+async def test_reset_mid_render(dut):
+    #Reset in the middle of a render should drop everything
+    #After reset the controller should sit idle, and a new render should start over:
+    #load the header again from address 0 and begin at pixel (0, 0)
+    #We use 1 sample per pixel and get to pixel (3, 0) first, so the pixel counter isn't already 0
+    reads = await setup(dut, HEADER_1SPP)
+    await render_to_raygen_start(dut, reads)
+    await done_then_start(dut, "rg", "iu", 0)
+    for _ in range(3):
+        pixel = await sky_sample(dut)
+    assert pixel == (3, 0), f"before reset we are at pixel {pixel}, expected (3, 0)"
+
+    #reset in the middle of the intersection unit search
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    reads.clear()
+
+    for i in range(20):
+        await ReadOnly()
+        assert starts(dut) == (0, 0, 0), f"start {starts(dut)} after reset with no render (cycle {i})"
+        assert int(dut.sram_req_valid.value) == 0, f"SRAM read after reset with no render (cycle {i})"
+        await RisingEdge(dut.clk)
+    assert reads == [], f"SRAM reads after reset with no render: {reads}"
+
+    await render_to_raygen_start(dut, reads)
+    assert reads == list(range(HDR_WORDS)), f"header reads after reset {reads}, expected 0..16 in order"
+    pixel = await read_pixel(dut)
+    assert pixel == (0, 0), f"first pixel after reset is {pixel}, expected (0, 0)"
