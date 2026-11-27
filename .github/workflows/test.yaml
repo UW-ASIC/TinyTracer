@@ -41,10 +41,20 @@ jobs:
           # make will return success even if the test fails, so check for failure in the results.xml
           ! grep failure results.xml
 
+      - name: Run SRAM control tests
+        run: |
+          cd test/sram_control
+          make clean
+          make
+          # make will return success even if the test fails, so check for failure in the results.xml
+          ! grep failure results.xml
+
       - name: Test Summary
         uses: test-summary/action@v2.3
         with:
-          paths: "test/results.xml"
+          paths: |
+            test/results.xml
+            test/sram_control/results.xml
         if: always()
 
       - name: upload vcd
@@ -55,3 +65,4 @@ jobs:
           path: |
             test/tb.vcd
             test/results.xml
+            test/sram_control/results.xml
