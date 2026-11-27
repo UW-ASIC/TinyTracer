@@ -559,12 +559,12 @@ module rtu (
 
   always_comb begin
     // ! Note: can optimize some of these default mux values by setting some of these to default to ray_gen
-    req_fmt = 0;
+    req_fmt = tinytracer_pkg::FMT_POS;
     req_u = 0;
     req_v = 0;
     req_resize = 0;
     req_valid = 0;
-    req_op = 0;
+    req_op = tinytracer_pkg::M_ADD;
     case (active)
       tinytracer_pkg::BLK_RAY_GEN: begin
         req_fmt    = rg_req.req_fmt;
