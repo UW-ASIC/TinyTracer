@@ -14,8 +14,10 @@ CLK_PERIOD_NS = 40  #25 MHz
 BLK_CTRL, BLK_RAY_GEN, BLK_ISECT, BLK_SHADER = 0, 1, 2, 3
 
 #values of hit_kind and material (hit_kind_t and mat_type_t in tinytracer_pkg.sv)
-HIT_SKY, HIT_OBJECT = 0, 2
+HIT_SKY, HIT_GROUND, HIT_OBJECT = 0, 1, 2
 MAT_DIFFUSE, MAT_EMISSIVE = 0, 3
+
+MAX_BOUNCES = 8
 
 #name of each fake sub-block inside the rtu
 BLOCKS = {"rg": "u_ray_generator", "iu": "u_intersection_unit", "sh": "u_shader_core"}
@@ -165,7 +167,7 @@ async def done_then_start(dut, done_block, next_block, expected_mode, hit_kind=N
     def end_done():
         done.value = 0
         if hit_kind is not None:
-            iu.hit_kind.value = hit_kind ^ 2  #SKY <-> OBJECT
+            iu.hit_kind.value = (hit_kind + 1) % 3  #SKY -> GROUND -> OBJECT -> SKY
         if material is not None:
             iu.material.value = material ^ 3  #DIFFUSE <-> EMISSIVE
 
@@ -201,6 +203,16 @@ async def reach_iu_search(dut):
     #Steps most path tests share: reset, render, header load, ray generator mode 0, then intersection unit mode 0
     reads = await setup(dut)
     await render_to_raygen_start(dut, reads)
+    await done_then_start(dut, "rg", "iu", 0)
+
+
+async def diffuse_bounce(dut):
+    #One full bounce off a diffuse object, starting from intersection unit mode 0
+    #object hit -> read object -> hit point and normal -> attenuation -> bounce ray -> search again
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "iu", 2, material=MAT_DIFFUSE)
+    await done_then_start(dut, "iu", "sh", 2)
+    await done_then_start(dut, "sh", "rg", 1)
     await done_then_start(dut, "rg", "iu", 0)
 
 
@@ -343,3 +355,39 @@ async def test_diffuse_bounce(dut):
     await done_then_start(dut, "iu", "iu", 2, material=MAT_DIFFUSE)
     await done_then_start(dut, "iu", "sh", 2)
     await done_then_start(dut, "sh", "rg", 1)
+
+
+@cocotb.test()
+async def test_ground_bounce(dut):
+    #Ray hit the ground. Ground has no object to read, so the controller should skip
+    #intersection unit mode 1 and go straight to mode 2 (hit point and normal)
+    #Then attenuation (shader mode 2), then a matte bounce (ray generator mode 1)
+    #The spec says the intersection unit sets the material to matte for the ground,
+    #so we also give diffuse on material while done is high
+    await reach_iu_search(dut)
+    await done_then_start(dut, "iu", "iu", 2, hit_kind=HIT_GROUND, material=MAT_DIFFUSE)
+    await done_then_start(dut, "iu", "sh", 2)
+    await done_then_start(dut, "sh", "rg", 1)
+
+
+@cocotb.test()
+async def test_bounce_limit(dut):
+    #After 8 bounces the next diffuse hit should not bounce again
+    #The shader core should make a black sample instead (mode 3)
+    #Doing all 8 bounces first also checks the controller doesn't stop early
+    await reach_iu_search(dut)
+    for _ in range(MAX_BOUNCES):
+        await diffuse_bounce(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "sh", 3, material=MAT_DIFFUSE)
+
+
+@cocotb.test()
+async def test_emissive_at_bounce_limit(dut):
+    #A glowing object still gives a glow sample (shader mode 1) at the bounce limit
+    #The controller checks the material before the bounce count (step 4 in rtu.md)
+    await reach_iu_search(dut)
+    for _ in range(MAX_BOUNCES):
+        await diffuse_bounce(dut)
+    await done_then_start(dut, "iu", "iu", 1, hit_kind=HIT_OBJECT)
+    await done_then_start(dut, "iu", "sh", 1, material=MAT_EMISSIVE)
