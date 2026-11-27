@@ -55,33 +55,25 @@ module rtu (
 
   // Sub-block <-> request path
   rtu_req_if rg_req ();
-  rtu_req_if iu_req ();
-  rtu_req_if sh_req ();
+  macro_if iu_macro ();
+  macro_if sh_macro ();
 
   // IU Regs
-  tinytracer_pkg::macro_word_t iu_word;  // intersection unit's macro-op word
+  sram_rd_if iu_sram ();
   logic                      iu_hit;         // object or ground hit, 0 = sky
   logic                      iu_hit_ground;  // the hit is the ground
   logic                      iu_hit_flip;    // sphere: the ray started inside
   tinytracer_pkg::vec3_t     iu_hit_point;   // hit point, POS
   tinytracer_pkg::vec3_t     iu_n;           // surface normal, DIR, faces the ray
   logic                      iu_checker_bit; // ground: hit point x[9] ^ y[9]
-  logic [tinytracer_pkg::ADDR_WIDTH-1:0] iu_sram_addr;
-  logic                      iu_sram_rd;
-  logic                      iu_sram_valid;
-  logic                      iu_resp_ready;
 
   // Shader Core Regs
-  tinytracer_pkg::macro_word_t sh_word;  // shader core's macro-op word
+  sram_rd_if sh_sram ();
   logic                      sh_new_sample;  // with start: first segment of a sample, attenuation = 255
   logic                      sh_last_bounce; // bounce count is at the limit
   logic                      sh_path_end;    // with done: the sample is finished
   logic [1:0]                sh_material;    // path goes on: material of the surface, held until the next start
   logic [3*tinytracer_pkg::SAMPLE_DEPTH-1:0] sh_sample;  // {r, g, b}, held after done
-  logic [tinytracer_pkg::ADDR_WIDTH-1:0] sh_sram_addr;
-  logic                      sh_sram_rd;
-  logic                      sh_sram_valid;
-  logic                      sh_resp_ready;
 
   tinytracer_pkg::rgb_t sky_hor, sky_top, gnd_a, gnd_b;
   logic [tinytracer_pkg::ADDR_WIDTH-1:0] hit_addr;
@@ -115,11 +107,7 @@ module rtu (
       .req           (rg_req)
   );
 
-  intersection_unit #(
-    .ADDR_WIDTH (tinytracer_pkg::ADDR_WIDTH),
-    .WLEN       (tinytracer_pkg::WLEN),
-    .DATA_WIDTH (tinytracer_pkg::DATA_WIDTH)
-  ) u_intersection_unit (
+  intersection_unit u_intersection_unit (
     .clk          (clk),
     .rst_n        (rst_n),
     .start        (iu_start),
@@ -134,16 +122,9 @@ module rtu (
     .ray_origin   (ray_o),
     .ray_dir      (ray_d),
     .bv_count     (bv_num),
-    .sram_addr    (iu_sram_addr),
-    .sram_rd      (iu_sram_rd),
-    .sram_data    (sram.resp_rdata),
-    .sram_valid   (iu_sram_valid),
-    .req_valid    (iu_req.req_valid),
-    .req_op       (iu_word),
-    .req_ready    (iu_req.req_ready),
-    .resp_valid   (iu_req.resp_valid),
-    .resp_result  (iu_req.resp_result),
-    .resp_ready   (iu_resp_ready),
+
+    .sram         (iu_sram),
+    .macro        (iu_macro),
 
     // debug ports
     .state_q      (),
@@ -159,11 +140,7 @@ module rtu (
   );
 
   // The Shader Core sends samples straight out of the RTU's sample port
-  shader_core #(
-    .ADDR_WIDTH (tinytracer_pkg::ADDR_WIDTH),
-    .WLEN       (tinytracer_pkg::WLEN),
-    .DATA_WIDTH (tinytracer_pkg::DATA_WIDTH)
-  ) u_shader_core (
+  shader_core u_shader_core (
     .clk         (clk),
     .rst_n       (rst_n),
     .new_sample  (sh_new_sample),
@@ -182,16 +159,9 @@ module rtu (
     .sky_top     (sky_top),
     .ground_a    (gnd_a),
     .ground_b    (gnd_b),
-    .sram_addr   (sh_sram_addr),
-    .sram_rd     (sh_sram_rd),
-    .sram_data   (sram.resp_rdata),
-    .sram_valid  (sh_sram_valid),
-    .req_valid   (sh_req.req_valid),
-    .req_op      (sh_word),
-    .req_ready   (sh_req.req_ready),
-    .resp_valid  (sh_req.resp_valid),
-    .resp_result (sh_req.resp_result),
-    .resp_ready  (sh_resp_ready)
+
+    .sram        (sh_sram),
+    .macro       (sh_macro)
   );
 
   // actual rtl part
@@ -215,9 +185,8 @@ module rtu (
   logic last_col, last_row;
   logic sample_start, sample_done, frame_done, final_sample;
 
-  logic[4:0] hdr_idx;
+  logic[4:0] hdr_idx, hdr_idx_next;
   logic hdr_pending, hdr_sram_valid, hdr_finish, hdr_req_valid;
-  logic [tinytracer_pkg::ADDR_WIDTH - 1: 0] hdr_req_addr;
   logic rg_active, iu_active, sc_active, ctrl_active;
 
   assign max_samples = (1 << spp_log2) - 1; // number of samples to count to per pixel
@@ -414,17 +383,17 @@ module rtu (
   assign sc_active = (active == tinytracer_pkg::BLK_SHADER);
   assign ctrl_active = (active == tinytracer_pkg::BLK_CTRL);
 
+  assign hdr_idx_next = hdr_idx + 1;
+
   // logic for reading next hdr_idx
   always_comb begin
     hdr_req_valid = 0;
-    hdr_req_addr = hdr_idx;
     if (state == HDR) begin
       if (!hdr_pending) begin
         hdr_req_valid = 1;
       end else if (sram.resp_valid && (hdr_idx != (tinytracer_pkg::HDR_WORDS - 1))) begin
         // if valid, move to next hdr word
         hdr_req_valid = 1;
-        hdr_req_addr = hdr_idx + 1;
       end
     end
   end
@@ -442,7 +411,7 @@ module rtu (
         if (sram.req_ready) hdr_pending <= 1;
       end else if (sram.resp_valid) begin
         if (hdr_idx != (tinytracer_pkg::HDR_WORDS - 1)) begin
-          hdr_idx  <= hdr_idx + 1;
+          hdr_idx  <= hdr_idx_next;
           hdr_pending <= sram.req_ready; // next request accepted in this cycle, or retry
         end else begin
           hdr_pending <= 0; // resets on next cycle
@@ -541,22 +510,17 @@ module rtu (
   // SRAM read/req logic
   assign sram.resp_ready = 1; // keeps resp_ready high
 
-  assign iu_sram_valid = sram.resp_valid && iu_active;
-  assign sh_sram_valid = sram.resp_valid && sc_active;
+  assign iu_sram.req_ready  = sram.req_ready && iu_active;
+  assign iu_sram.resp_valid = sram.resp_valid && iu_active;
+  assign iu_sram.resp_rdata = sram.resp_rdata;
+
+  assign sh_sram.req_ready  = sram.req_ready && sc_active;
+  assign sh_sram.resp_valid = sram.resp_valid && sc_active;
+  assign sh_sram.resp_rdata = sram.resp_rdata;
 
   // The shader core pulses sram_rd for one cycle and holds sram_addr until the word is back
-  logic sh_rd_pending, iu_rd_pending;
+  logic iu_rd_pending;
   logic [tinytracer_pkg::ADDR_WIDTH-1:0] iu_rd_addr;
-
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      sh_rd_pending <= 0;
-    end else if (sram.req_ready) begin
-      sh_rd_pending <= 0;
-    end else if (sc_active && sh_sram_rd) begin
-      sh_rd_pending <= 1;
-    end
-  end
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -564,9 +528,9 @@ module rtu (
       iu_rd_addr <= 0;
     end else if (sram.req_ready) begin
       iu_rd_pending <= 0;
-    end else if (iu_active && iu_sram_rd) begin
+    end else if (iu_active && iu_sram.req_valid) begin
       iu_rd_pending <= 1;
-      iu_rd_addr <= iu_sram_addr;
+      iu_rd_addr <= iu_sram.req_raddr;
     end
   end
 
@@ -577,30 +541,17 @@ module rtu (
 
     if (ctrl_active) begin
       sram.req_valid = hdr_req_valid;
-      sram.req_raddr = hdr_req_addr;
+      sram.req_raddr = hdr_pending ? hdr_idx_next : hdr_idx;
     end else if (iu_active) begin
-      sram.req_valid = iu_sram_rd || iu_rd_pending;
-      sram.req_raddr = iu_rd_pending ? iu_rd_addr : iu_sram_addr;
+      sram.req_valid = iu_sram.req_valid || iu_rd_pending;
+      sram.req_raddr = iu_rd_pending ? iu_rd_addr : iu_sram.req_raddr;
     end else if (sc_active) begin
-      sram.req_valid = sh_sram_rd || sh_rd_pending;
-      sram.req_raddr = sh_sram_addr;
+      sram.req_valid = sh_sram.req_valid;
+      sram.req_raddr = sh_sram.req_raddr;
     end
   end
 
   // request path
-  assign iu_req.req_we  = {8{iu_req.req_valid}};
-  assign iu_req.req_fmt = iu_word.fmt;
-  assign iu_req.req_u   = iu_word.u;
-  assign iu_req.req_v   = iu_word.v;
-  assign iu_req.req_op  = iu_word.op;
-
-  assign sh_req.req_we  = {8{sh_req.req_valid}};
-  assign sh_req.req_fmt = sh_word.fmt;
-  assign sh_req.req_u   = sh_word.u;
-  assign sh_req.req_v   = sh_word.v;
-  assign sh_req.req_op  = sh_word.op;
-
-  logic [7:0] req_we;
   tinytracer_pkg::fmt_t req_fmt;
   tinytracer_pkg::vec3_t req_u, req_v;
   tinytracer_pkg::macro_op_t req_op;
@@ -608,7 +559,6 @@ module rtu (
 
   always_comb begin
     // ! Note: can optimize some of these default mux values by setting some of these to default to ray_gen
-    req_we = 0;
     req_fmt = 0;
     req_u = 0;
     req_v = 0;
@@ -617,7 +567,6 @@ module rtu (
     req_op = 0;
     case (active)
       tinytracer_pkg::BLK_RAY_GEN: begin
-        req_we     = rg_req.req_we;
         req_fmt    = rg_req.req_fmt;
         req_u      = rg_req.req_u;
         req_v      = rg_req.req_v;
@@ -628,21 +577,19 @@ module rtu (
 
       // resize is not used in iu or sc
       tinytracer_pkg::BLK_ISECT: begin
-        req_we     = iu_req.req_we;
-        req_fmt    = iu_req.req_fmt;
-        req_u      = iu_req.req_u;
-        req_v      = iu_req.req_v;
-        req_op     = iu_req.req_op;
-        req_valid  = iu_req.req_valid;
+        req_fmt    = iu_macro.req_op.fmt;
+        req_u      = iu_macro.req_op.u;
+        req_v      = iu_macro.req_op.v;
+        req_op     = iu_macro.req_op.op;
+        req_valid  = iu_macro.req_valid;
       end
 
       tinytracer_pkg::BLK_SHADER: begin
-        req_we     = sh_req.req_we;
-        req_fmt    = sh_req.req_fmt;
-        req_u      = sh_req.req_u;
-        req_v      = sh_req.req_v;
-        req_op     = sh_req.req_op;
-        req_valid  = sh_req.req_valid;
+        req_fmt    = sh_macro.req_op.fmt;
+        req_u      = sh_macro.req_op.u;
+        req_v      = sh_macro.req_op.v;
+        req_op     = sh_macro.req_op.op;
+        req_valid  = sh_macro.req_valid;
       end
 
       default: ;
@@ -680,32 +627,9 @@ module rtu (
     end
   end
 
-  // request register
-  tinytracer_pkg::macro_word_t req_reg, req_next;
-
-  always_comb begin
-    req_next = req_reg; // default to hold the same vals
-    if (req_we[7]) req_next.fmt = req_fmt;
-    if (req_we[6]) req_next.u.z = req_u_shifted.z; // u3 (shifted)
-    if (req_we[5]) req_next.u.y = req_u_shifted.y; // u2 (shifted)
-    if (req_we[4]) req_next.u.x = req_u_shifted.x; // u1 (shifted)
-    if (req_we[3]) req_next.v.z = req_v.z; // v3
-    if (req_we[2]) req_next.v.y = req_v.y; // v2
-    if (req_we[1]) req_next.v.x = req_v.x; // v1
-    if (req_we[0]) req_next.op  = req_op; // MACROOP
-  end
-
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      req_reg <= 0;
-    end else begin
-      req_reg <= req_next;
-    end
-  end
-
   // Macro Ops
   assign macro.req_valid = req_valid;
-  assign macro.req_op = req_next;
+  assign macro.req_op = {req_fmt, req_u_shifted, req_v, req_op};
 
   assign macro.resp_ready = 1;
 
@@ -714,14 +638,12 @@ module rtu (
   assign rg_req.resp_flag = macro.resp_result.x[0];
   assign rg_req.resp_result = macro.resp_result;
 
-  assign iu_req.req_ready = macro.req_ready;
-  assign iu_req.resp_valid = macro.resp_valid && iu_active;
-  assign iu_req.resp_flag = macro.resp_result.x[0];
-  assign iu_req.resp_result = macro.resp_result;
+  assign iu_macro.req_ready = macro.req_ready;
+  assign iu_macro.resp_valid = macro.resp_valid && iu_active;
+  assign iu_macro.resp_result = macro.resp_result;
 
-  assign sh_req.req_ready = macro.req_ready;
-  assign sh_req.resp_valid = macro.resp_valid && sc_active;
-  assign sh_req.resp_flag = macro.resp_result.x[0];
-  assign sh_req.resp_result = macro.resp_result;
+  assign sh_macro.req_ready = macro.req_ready;
+  assign sh_macro.resp_valid = macro.resp_valid && sc_active;
+  assign sh_macro.resp_result = macro.resp_result;
 
 endmodule
